@@ -11,8 +11,6 @@ from typing import Any, Dict, Optional, Tuple
 from ..utils.tree_sitter_types import (
     Parser,
     Tree,
-    ensure_language,
-    ensure_parser,
     ensure_tree,
 )
 
@@ -363,18 +361,6 @@ def get_tree_cache() -> TreeCache:
 @lru_cache(maxsize=32)
 def get_cached_parser(language: Any) -> Parser:
     """Get a cached parser for a language."""
-    parser = Parser()
-    safe_language = ensure_language(language)
+    from ..utils.tree_sitter_helpers import create_parser
 
-    # Try both set_language and language methods
-    try:
-        parser.set_language(safe_language)  # type: ignore
-    except AttributeError:
-        if hasattr(parser, "language"):
-            # Use the language method if available
-            parser.language = safe_language  # type: ignore
-        else:
-            # Fallback to setting the attribute directly
-            parser.language = safe_language  # type: ignore
-
-    return ensure_parser(parser)
+    return create_parser(language)

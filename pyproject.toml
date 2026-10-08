@@ -26,8 +26,8 @@ dependencies = [
     # Pinned below 0.25 deliberately: 0.25 changed Parser.parse() to require
     # str instead of bytes, which breaks the entire test suite. The migration
     # is tracked separately; until then, CI must use 0.24.x to stay green.
-    "tree-sitter>=0.24.0,<0.25",
-    "tree-sitter-language-pack>=0.6.1",
+    "tree-sitter>=0.26,<0.27",
+    "tree-sitter-language-pack>=1.21.0",
     "pyyaml>=6.0",
     "pydantic>=2.0.0",
     "types-pyyaml>=6.0.12.20241230",

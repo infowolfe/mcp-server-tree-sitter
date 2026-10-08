@@ -387,20 +387,14 @@ def test_query_based_symbol_extraction(test_project) -> None:
     """
     try:
         # Import necessary components for direct query execution
-        from tree_sitter import Parser, Query
+        from tree_sitter import Query
         from tree_sitter_language_pack import get_language
+
+        from mcp_server_tree_sitter.utils.tree_sitter_helpers import create_parser, parse_source
 
         # Get Python language
         language_obj = get_language("python")
-
-        # Create a parser
-        parser = Parser()
-        try:
-            # Try set_language method first
-            parser.set_language(language_obj)  # type: ignore
-        except (AttributeError, TypeError):
-            # Fall back to setting language property
-            parser.language = language_obj
+        parser = create_parser(language_obj)
 
         # Read the file content
         file_path = os.path.join(test_project["path"], "test.py")
@@ -408,7 +402,7 @@ def test_query_based_symbol_extraction(test_project) -> None:
             content = f.read()
 
         # Parse the content
-        tree = parser.parse(content)
+        tree = parse_source(content, parser)
 
         # Define queries for different symbol types
         function_query = """

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from ..exceptions import QueryError, SecurityError
 from ..utils.security import validate_file_access
+from ..utils.tree_sitter_helpers import parse_source
 
 
 def search_text(
@@ -196,7 +197,7 @@ def query_code(
                     source_bytes = f.read()
 
                 parser = language_registry.get_parser(language)
-                tree = parser.parse(source_bytes)
+                tree = parse_source(source_bytes, parser)
 
                 # Cache the tree
                 tree_cache.put(abs_path, language, tree, source_bytes)
@@ -433,7 +434,7 @@ def find_similar_code(
     try:
         parser = language_registry.get_parser(language)
         snippet_bytes = snippet.encode("utf-8")
-        snippet_tree = parser.parse(snippet_bytes)
+        snippet_tree = parse_source(snippet_bytes, parser)
         snippet_fp = _extract_ast_fingerprint(snippet_tree.root_node, snippet_bytes)
     except Exception as e:
         raise QueryError(f"Failed to parse snippet as {language}: {e}") from e
@@ -466,7 +467,7 @@ def find_similar_code(
                 else:
                     with open(file_path, "rb") as f:
                         source_bytes = f.read()
-                    tree = parser.parse(source_bytes)
+                    tree = parse_source(source_bytes, parser)
                     tree_cache.put(file_path, language, tree, source_bytes)
 
                 # Compare each top-level block against the snippet

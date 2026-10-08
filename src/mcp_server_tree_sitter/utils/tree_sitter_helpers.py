@@ -60,26 +60,17 @@ def create_parser(language_obj: Any) -> Parser:
     """
     Create a parser configured for a specific language.
 
+    tree-sitter 0.26 takes the language in the constructor and has no
+    set_language method.
+
     Args:
         language_obj: Language object
 
     Returns:
         Configured Parser
     """
-    parser = Parser()
     safe_language = ensure_language(language_obj)
-
-    # Try both set_language and language methods
-    try:
-        parser.set_language(safe_language)  # type: ignore
-    except AttributeError:
-        if hasattr(parser, "language"):
-            # Use the language method if available
-            parser.language = safe_language  # type: ignore
-        else:
-            # Fallback to setting the attribute directly
-            parser.language = safe_language  # type: ignore
-
+    parser = Parser(safe_language)
     return ensure_parser(parser)
 
 

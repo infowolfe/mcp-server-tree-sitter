@@ -107,6 +107,9 @@ except ImportError:
     class DummyParser:
         """Dummy implementation when tree-sitter is not available."""
 
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
         def set_language(self, language: Any) -> None:
             """Dummy set_language method."""
             pass
