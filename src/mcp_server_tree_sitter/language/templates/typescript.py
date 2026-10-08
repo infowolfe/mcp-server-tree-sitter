@@ -24,7 +24,7 @@ TEMPLATES = {
     "interfaces": """
         (interface_declaration
             name: (type_identifier) @interface.name
-            body: (object_type) @interface.body) @interface.def
+            body: (interface_body) @interface.body) @interface.def
 
         (type_alias_declaration
             name: (type_identifier) @alias.name
@@ -41,6 +41,20 @@ TEMPLATES = {
                 (named_imports
                     (import_specifier
                         name: (identifier) @import.name))))
+
+        (import_statement
+            (import_clause
+                (named_imports
+                    (import_specifier
+                        alias: (identifier) @import.alias))))
+
+        (import_statement
+            (import_clause
+                (identifier) @import.name))
+
+        (import_statement
+            (import_require_clause
+                (identifier) @import.name))
 
         (import_statement
             (import_clause

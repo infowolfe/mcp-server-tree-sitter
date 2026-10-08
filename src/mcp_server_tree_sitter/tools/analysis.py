@@ -362,8 +362,9 @@ def process_symbol_matches(
                             text = f"{module_name_str} as {alias_text_str}"
                         else:
                             text = f"{module_name} as {alias_text}"
-            # For other symbol types
-            elif not capture_name.endswith(".name") and not capture_name == symbol_type:
+            # A symbol name is the .name capture. The symbol type itself
+            # (for example "functions") names the whole matched node.
+            elif not capture_name.endswith(".name"):
                 return
 
             text = get_node_text(safe_node, source_bytes, decode=True)

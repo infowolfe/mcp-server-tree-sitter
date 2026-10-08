@@ -3,51 +3,68 @@
 TEMPLATES = {
     "functions": """
         (function_definition
-            name: (identifier) @function.name) @function.def
+            (signature
+                (call_expression
+                    (identifier) @function.name))) @function.def
 
         (function_definition
-            name: (identifier) @function.name
-            parameters: (parameter_list) @function.params
-            body: (block) @function.body) @function.def
+            (signature
+                (call_expression
+                    (field_expression) @function.name))) @function.def
 
-        (short_function_definition
-            name: (identifier) @function.name) @function.short_def
+        (function_definition
+            (signature
+                (call_expression
+                    (identifier) @function.name
+                    (argument_list) @function.params))
+            (block) @function.body) @function.def
+
+        (assignment
+            . (call_expression
+                (identifier) @function.name)) @function.short_def
+
+        (assignment
+            . (call_expression
+                (field_expression) @function.name)) @function.short_def
     """,
     "modules": """
         (module_definition
             name: (identifier) @module.name
-            body: (block) @module.body) @module.def
+            (block) @module.body) @module.def
     """,
     "structs": """
         (struct_definition
-            name: (identifier) @struct.name
-            body: (block) @struct.body) @struct.def
-
-        (mutable_struct_definition
-            name: (identifier) @struct.name
-            body: (block) @struct.body) @struct.mutable_def
+            (type_head
+                (identifier) @struct.name)
+            (block) @struct.body) @struct.def
     """,
     "imports": """
         (import_statement) @import
 
         (import_statement
-            name: (identifier) @import.name) @import.simple
-
-        (using_statement) @using
-
-        (using_statement
-            name: (identifier) @using.name) @using.simple
+            (import_path) @import.name) @import.simple
 
         (import_statement
-            name: (dot_expression) @import.qualified) @import.qualified
+            (identifier) @import.name) @import.simple
+
+        (using_statement) @import
+
+        (using_statement
+            (import_path) @import.name) @import.simple
+
+        (using_statement
+            (identifier) @import.name) @import.simple
     """,
     "macros": """
         (macro_definition
-            name: (identifier) @macro.name
-            body: (block) @macro.body) @macro.def
+            (signature
+                (call_expression
+                    (identifier) @macro.name))
+            (block) @macro.body) @macro.def
     """,
     "abstractTypes": """
         (abstract_definition
-            name: (identifier) @abstract.name) @abstract.def
+            (type_head
+                (identifier) @abstract.name)) @abstract.def
     """,
 }

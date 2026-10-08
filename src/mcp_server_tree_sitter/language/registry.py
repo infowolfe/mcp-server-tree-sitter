@@ -48,6 +48,7 @@ class LanguageRegistry:
             "swift": "swift",
             "dart": "dart",
             "kt": "kotlin",
+            "jl": "julia",
             "lua": "lua",
             "hs": "haskell",
             "ml": "ocaml",

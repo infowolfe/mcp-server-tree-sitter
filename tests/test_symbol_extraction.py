@@ -9,7 +9,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, List
 
 import pytest
 
@@ -604,3 +604,29 @@ def test_debug_file_saving(test_project) -> None:
         json.dump(dependencies, f, indent=2, cls=BytesEncoder)
 
     print(f"\nDebug information saved to {debug_dir}")
+
+
+def test_exact_symbol_type_capture_is_not_a_symbol() -> None:
+    """A capture named for the symbol type is the whole node, not the symbol name."""
+    from tree_sitter import Query
+    from tree_sitter_language_pack import get_language, get_parser
+
+    from mcp_server_tree_sitter.tools.analysis import process_symbol_matches
+    from mcp_server_tree_sitter.utils.tree_sitter_helpers import query_captures
+
+    source = b"def greet():\n    return 1\n"
+    parser = get_parser("python")
+    tree = parser.parse(source)
+    query = Query(
+        get_language("python"),
+        "(function_definition name: (identifier) @function.name) @functions",
+    )
+    symbols: Dict[str, List[Dict[str, Any]]] = {"functions": []}
+    process_symbol_matches(
+        query_captures(query, tree.root_node),
+        "functions",
+        symbols,
+        source,
+        tree,
+    )
+    assert [item["name"] for item in symbols["functions"]] == ["greet"]
