@@ -288,6 +288,38 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
 
         return None
 
+    @mcp_server.tool()
+    def get_enclosing_scope(
+        project: str,
+        path: str,
+        row: int,
+        column: int,
+        max_lines: int = 200,
+    ) -> Optional[Dict[str, Any]]:
+        """Return the function, method, class, or module that encloses a position.
+
+        Args:
+            project: Project name
+            path: File path relative to project root
+            row: Line number (0-based)
+            column: Column number (0-based byte offset)
+            max_lines: Maximum lines of scope text to return. 0 means no limit.
+
+        Returns:
+            Scope payload, or None when the position is outside the file
+        """
+        from ..tools.ast_operations import get_enclosing_scope as enclosing_scope
+
+        return enclosing_scope(
+            project_registry.get_project(project),
+            path,
+            row,
+            column,
+            language_registry,
+            tree_cache,
+            max_lines=max_lines,
+        )
+
     # Search and Query Tools
     @mcp_server.tool()
     def find_text(

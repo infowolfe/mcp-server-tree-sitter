@@ -79,6 +79,7 @@ def test_all_tools_registered():
         "get_file_metadata",
         "get_ast",
         "get_node_at_position",
+        "get_enclosing_scope",
         "get_symbols",
         "run_query",
         "find_text",

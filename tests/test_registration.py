@@ -85,6 +85,7 @@ def test_register_tools_registers_all_tools(mock_mcp_server, mock_container):
         "get_file_metadata",
         "get_ast",
         "get_node_at_position",
+        "get_enclosing_scope",
         "find_text",
         "run_query",
         "get_query_template_tool",

@@ -4,10 +4,12 @@ import logging
 from typing import Any, Dict, Optional
 
 from ..exceptions import FileAccessError, ParsingError
+from ..language.scope_types import kind_for_node_type
 from ..models.ast import node_to_dict
 from ..utils.file_io import read_binary_file
 from ..utils.security import validate_file_access
 from ..utils.tree_sitter_helpers import (
+    get_node_text,
     parse_source,
 )
 
@@ -130,3 +132,380 @@ def find_node_at_position(root_node: Any, row: int, column: int) -> Optional[Any
     from ..models.ast import find_node_at_position as find_node
 
     return find_node(root_node, row, column)
+
+
+_C_NAME_TYPES = {"identifier", "field_identifier", "destructor_name", "operator_name"}
+_CPP_CLASS_TYPES = {"class_specifier", "struct_specifier"}
+_C_DECLARATOR_WRAPPERS = {
+    "function_declarator",
+    "pointer_declarator",
+    "reference_declarator",
+    "parenthesized_declarator",
+}
+_DART_SIGNATURES = {"function_signature", "method_signature"}
+
+
+def get_enclosing_scope(
+    project: Any,
+    path: str,
+    row: int,
+    column: int,
+    language_registry: Any,
+    tree_cache: Any,
+    max_lines: int = 200,
+) -> Optional[Dict[str, Any]]:
+    """Return the nearest function, method, class, or module around a cursor.
+
+    Positions are 0-based, matching get_node_at_position. File access is
+    checked before the tree cache and before parse. A cursor on the tree's
+    exclusive end point is the module. A cursor past the tree is None.
+
+    Scope tables are adapted from Carlos Faria (cx-carlos-faria, CxMaster).
+
+    Args:
+        project: Project object
+        path: File path relative to the project root
+        row: Line number, 0-based
+        column: Column number, 0-based byte offset
+        language_registry: Language registry
+        tree_cache: Tree cache instance
+        max_lines: Maximum lines of scope text. 0 means no limit.
+
+    Returns:
+        Scope payload, or None when the position is outside the file
+
+    Raises:
+        FileAccessError: If file access fails
+        ParsingError: If the language is unknown or parsing fails
+    """
+    abs_path = project.get_file_path(path)
+
+    try:
+        validate_file_access(abs_path, project.root_path)
+    except Exception as e:
+        raise FileAccessError(f"Access denied: {e}") from e
+
+    language = language_registry.language_for_file(path)
+    if not language:
+        raise ParsingError(f"Could not detect language for {path}")
+
+    tree, source_bytes = parse_file(abs_path, language, language_registry, tree_cache)
+    root = tree.root_node
+    here = (int(row), int(column))
+    start = _point_tuple(root.start_point)
+    end = _point_tuple(root.end_point)
+
+    if _point_before(here, start) or _point_before(end, here):
+        return None
+
+    # end_point is exclusive, so a cursor sitting on it is still in the file.
+    if here == end:
+        return _scope_payload(root, "module", language, source_bytes, path, max_lines)
+
+    node = find_node_at_position(root, here[0], here[1])
+    if node is None:
+        return None
+
+    scope_node, kind = _nearest_scope(language, node, root)
+    return _scope_payload(scope_node, kind, language, source_bytes, path, max_lines)
+
+
+def _point_tuple(point: Any) -> tuple[int, int]:
+    """Normalize a tree-sitter point to a pair of ints.
+
+    Point equality against a raw tuple can fail even when ordering works.
+    """
+    return (int(point[0]), int(point[1]))
+
+
+def _point_before(left: tuple[int, int], right: tuple[int, int]) -> bool:
+    if left[0] != right[0]:
+        return left[0] < right[0]
+    return left[1] < right[1]
+
+
+def _nearest_scope(language: str, node: Any, root: Any) -> tuple[Any, str]:
+    current = node
+    while current is not None:
+        # The decorator is outside the function node. A cursor on it still
+        # belongs to the definition that wrapper carries.
+        if str(current.type) == "decorated_definition":
+            definition = current.child_by_field_name("definition")
+            if definition is not None:
+                kind = _scope_kind(language, definition)
+                if kind is not None:
+                    return definition, kind
+        # The friend keyword sits outside the function node.
+        if str(current.type) == "friend_declaration":
+            definition = _child_of_type(current, "function_definition")
+            if definition is not None:
+                kind = _scope_kind(language, definition)
+                if kind is not None:
+                    return definition, kind
+        kind = _scope_kind(language, current)
+        if kind is not None:
+            return current, kind
+        current = current.parent
+    return root, "module"
+
+
+def _scope_kind(language: str, node: Any) -> Optional[str]:
+    node_type = str(node.type)
+    if language == "go" and node_type == "type_spec" and not _is_go_struct_spec(node):
+        return None
+
+    kind = kind_for_node_type(language, node_type)
+    if kind is None:
+        return None
+    if language == "python" and node_type == "function_definition":
+        return _python_function_kind(node)
+    if language == "cpp" and node_type == "function_definition" and _is_cpp_method(node):
+        return "method"
+    return kind
+
+
+def _python_function_kind(node: Any) -> str:
+    """Method only when the nearest enclosing scope is a class.
+
+    A function nested in a method stays a function. block and
+    decorated_definition are not scopes, so they are skipped with every
+    other non-scope wrapper.
+    """
+    parent = node.parent
+    while parent is not None:
+        if kind_for_node_type("python", str(parent.type)) is not None:
+            if parent.type == "class_definition":
+                return "method"
+            return "function"
+        parent = parent.parent
+    return "function"
+
+
+def _is_go_struct_spec(node: Any) -> bool:
+    """A grouped type declaration is a scope only for its struct specs."""
+    type_node = node.child_by_field_name("type")
+    if type_node is not None:
+        return bool(type_node.type == "struct_type")
+    for index in range(node.child_count):
+        child = node.child(index)
+        if child is not None and child.type == "struct_type":
+            return True
+    return False
+
+
+def _is_cpp_method(node: Any) -> bool:
+    """In-class functions are methods. A friend defined in the class is not.
+
+    An out-of-line ``C::out`` is a method when ``C`` is a class or struct in
+    this file. ``ns::h`` stays a function when ``ns`` is not.
+    """
+    if _defined_inside_class(node):
+        return True
+    return _qualified_scope_matches_class(node)
+
+
+def _defined_inside_class(node: Any) -> bool:
+    parent = node.parent
+    while parent is not None:
+        if parent.type == "friend_declaration":
+            return False
+        if parent.type in _CPP_CLASS_TYPES:
+            return True
+        parent = parent.parent
+    return False
+
+
+def _qualified_scope_matches_class(node: Any) -> bool:
+    declarator = node.child_by_field_name("declarator")
+    qualified = _find_node_type(declarator, "qualified_identifier")
+    if qualified is None:
+        return False
+    scope = qualified.child_by_field_name("scope")
+    if scope is None or not scope.text:
+        return False
+    root = node
+    while root.parent is not None:
+        root = root.parent
+    return bytes(scope.text) in _class_and_struct_names(root)
+
+
+def _class_and_struct_names(root: Any) -> set[bytes]:
+    names: set[bytes] = set()
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        if current.type in _CPP_CLASS_TYPES:
+            name = current.child_by_field_name("name")
+            if name is not None and name.text:
+                names.add(bytes(name.text))
+        for index in range(current.child_count):
+            child = current.child(index)
+            if child is not None:
+                stack.append(child)
+    return names
+
+
+def _child_of_type(node: Any, node_type: str) -> Optional[Any]:
+    for index in range(node.child_count):
+        child = node.child(index)
+        if child is not None and child.type == node_type:
+            return child
+    return None
+
+
+def _find_node_type(node: Any, node_type: str) -> Optional[Any]:
+    if node is None:
+        return None
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current.type == node_type:
+            return current
+        for index in range(current.child_count):
+            child = current.child(index)
+            if child is not None:
+                stack.append(child)
+    return None
+
+
+def _declarator_name_node(node: Any) -> Optional[Any]:
+    """Walk function, pointer, reference, and parenthesized declarators.
+
+    A reference_declarator in the C++ grammar has no declarator field. The
+    inner function_declarator is an unnamed child, so follow that too.
+    """
+    current = node.child_by_field_name("declarator")
+    for _ in range(16):
+        if current is None:
+            return None
+        if current.type in _C_NAME_TYPES:
+            return current
+        nxt = current.child_by_field_name("declarator")
+        if nxt is None:
+            nxt = _declarator_wrapper_child(current)
+        if nxt is not None:
+            current = nxt
+            continue
+        for index in range(current.child_count):
+            child = current.child(index)
+            if child is not None and child.type in _C_NAME_TYPES:
+                return child
+        return None
+    return None
+
+
+def _declarator_wrapper_child(node: Any) -> Optional[Any]:
+    for index in range(node.child_count):
+        child = node.child(index)
+        if child is not None and child.type in _C_DECLARATOR_WRAPPERS:
+            return child
+    return None
+
+
+def _scope_payload(
+    node: Any,
+    kind: str,
+    language: str,
+    source_bytes: bytes,
+    path: str,
+    max_lines: int,
+) -> Dict[str, Any]:
+    text, truncated = _truncate_lines(_node_text(node, source_bytes), max_lines)
+    start = _point_tuple(node.start_point)
+    end = _point_tuple(node.end_point)
+    return {
+        "kind": kind,
+        "type": node.type,
+        "name": _scope_name(language, node, source_bytes),
+        "text": text,
+        "truncated": truncated,
+        "start": {"row": start[0], "column": start[1]},
+        "end": {"row": end[0], "column": end[1]},
+        "file": path,
+    }
+
+
+def _scope_name(language: str, node: Any, source_bytes: bytes) -> Optional[str]:
+    if language in ("c", "cpp") and node.type == "function_definition":
+        name_node = _declarator_name_node(node)
+        if name_node is None:
+            return None
+        return _node_text(name_node, source_bytes) or None
+
+    if language == "kotlin":
+        kotlin_name = _kotlin_name(node, source_bytes)
+        if kotlin_name is not None:
+            return kotlin_name
+
+    if language == "dart" and node.type == "function_body":
+        dart_name = _dart_function_name(node, source_bytes)
+        if dart_name is not None:
+            return dart_name
+
+    named = node.child_by_field_name("name")
+    if named is None:
+        return None
+    return _node_text(named, source_bytes) or None
+
+
+def _kotlin_name(node: Any, source_bytes: bytes) -> Optional[str]:
+    """Kotlin declarations have no name field."""
+    if node.type == "function_declaration":
+        wanted = "simple_identifier"
+    elif node.type == "class_declaration":
+        wanted = "type_identifier"
+    else:
+        return None
+    for index in range(node.child_count):
+        child = node.child(index)
+        if child is not None and child.type == wanted:
+            return _node_text(child, source_bytes) or None
+    return None
+
+
+def _dart_function_name(node: Any, source_bytes: bytes) -> Optional[str]:
+    """The signature is the previous sibling, not a child of function_body."""
+    parent = node.parent
+    if parent is None:
+        return None
+
+    signature = None
+    for index in range(parent.child_count):
+        child = parent.child(index)
+        if child is None:
+            continue
+        if child.start_byte == node.start_byte and child.type == node.type:
+            break
+        if child.type in _DART_SIGNATURES:
+            signature = child
+    if signature is None:
+        return None
+
+    named = signature.child_by_field_name("name")
+    if named is not None:
+        return _node_text(named, source_bytes) or None
+    for index in range(signature.child_count):
+        child = signature.child(index)
+        if child is None or child.type != "function_signature":
+            continue
+        named = child.child_by_field_name("name")
+        if named is not None:
+            return _node_text(named, source_bytes) or None
+    return None
+
+
+def _node_text(node: Any, source_bytes: bytes) -> str:
+    text = get_node_text(node, source_bytes, decode=True)
+    if isinstance(text, bytes):
+        return text.decode("utf-8", errors="replace")
+    return str(text)
+
+
+def _truncate_lines(text: str, max_lines: int) -> tuple[str, bool]:
+    """Cut text to max_lines. 0 keeps the whole text."""
+    if max_lines == 0:
+        return text, False
+    lines = text.splitlines(keepends=True)
+    if len(lines) <= max_lines:
+        return text, False
+    return "".join(lines[:max_lines]), True

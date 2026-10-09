@@ -436,7 +436,7 @@ The server provides tools for:
 - Project management: `register_project_tool`, `list_projects_tool`, `remove_project_tool`
 - Language management: `list_languages`, `check_language_available`
 - File operations: `list_files`, `get_file`, `get_file_metadata`
-- AST analysis: `get_ast`, `get_node_at_position`
+- AST analysis: `get_ast`, `get_node_at_position`, `get_enclosing_scope`
 - Code search: `find_text`, `run_query`
 - Symbol extraction: `get_symbols`, `find_usage`
 - Project analysis: `analyze_project`, `get_dependencies`, `analyze_complexity`
