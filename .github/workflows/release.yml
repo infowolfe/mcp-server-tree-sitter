@@ -25,11 +25,10 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     
+    # Same locked resolve as CI and make prepare. An unlocked install
+    # pulled ruff 0.17.0, which formats files the locked 0.11.0 accepts.
     - name: Install development dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv pip install -e ".[dev]"
+      run: uv sync --frozen --extra dev
     
     - name: Run comprehensive tests
       run: |
