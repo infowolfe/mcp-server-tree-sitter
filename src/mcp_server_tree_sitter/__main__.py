@@ -29,7 +29,7 @@ def main() -> int:
         import importlib.metadata
 
         try:
-            version = importlib.metadata.version("mcp-server-tree-sitter")
+            version = importlib.metadata.version("tree-sitter-mcp-ng")
             print(f"mcp-server-tree-sitter version {version}")
         except importlib.metadata.PackageNotFoundError:
             print("mcp-server-tree-sitter (version unknown - package not installed)")
