@@ -49,6 +49,8 @@ class LanguageConfig(BaseModel):
     auto_install: bool = False  # DEPRECATED: No longer used with tree-sitter-language-pack
     default_max_depth: int = 5  # Default depth for AST traversal
     preferred_languages: List[str] = Field(default_factory=list)
+    # Startup-only. The registry is built once and does not reload cached languages.
+    prefer_installed_grammars: bool = False
 
 
 class ServerConfig(BaseModel):
@@ -405,6 +407,7 @@ class ConfigurationManager:
             "language": {
                 "auto_install": self._config.language.auto_install,
                 "default_max_depth": self._config.language.default_max_depth,
+                "prefer_installed_grammars": self._config.language.prefer_installed_grammars,
             },
             "log_level": self._config.log_level,
         }
@@ -467,6 +470,7 @@ def update_config_from_new(original: ServerConfig, new: ServerConfig) -> None:
         original.language.auto_install = new.language.auto_install
         original.language.default_max_depth = new.language.default_max_depth
         original.language.preferred_languages = new.language.preferred_languages.copy()
+        original.language.prefer_installed_grammars = new.language.prefer_installed_grammars
 
         # Other settings
         original.log_level = new.log_level

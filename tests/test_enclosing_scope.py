@@ -335,6 +335,18 @@ def test_dart_function_body_uses_previous_signature(tmp_path: Path) -> None:
     assert method["type"] == "function_body"
     assert method["name"] == "m"
 
+    top_signature = _at(project, path, DART_SOURCE, "void main")
+    assert top_signature is not None
+    assert top_signature["type"] == "function_body"
+    assert top_signature["name"] == "main"
+    assert "print(1)" in top_signature["text"]
+
+    method_signature = _at(project, path, DART_SOURCE, "m()")
+    assert method_signature is not None
+    assert method_signature["type"] == "function_body"
+    assert method_signature["name"] == "m"
+    assert "class C" not in method_signature["text"]
+
 
 def test_javascript_keyword_cursor_reaches_the_function(tmp_path: Path) -> None:
     project = "scope-js-keyword"
@@ -505,6 +517,196 @@ def test_oversize_file_is_rejected_before_parse(tmp_path: Path, monkeypatch: pyt
             get_enclosing_scope(project_obj, path, 0, 0, language_registry, tree_cache)
     finally:
         config_manager.update_value("security.max_file_size_mb", original)
+
+
+SWIFT_SOURCE = """struct S {
+    func f(x: Int) -> Int { return x }
+    var x: Int { return 2 }
+}
+class C {
+    func m() { print(1) }
+    init() { print(2) }
+}
+extension S {
+    func g() { print(3) }
+}
+func free() { print(4) }
+"""
+
+
+def test_swift_column_zero_and_computed_members(tmp_path: Path) -> None:
+    project = "scope-swift"
+    path = _register(tmp_path, project, "sample.swift", SWIFT_SOURCE)
+
+    free = _at(project, path, SWIFT_SOURCE, "func free")
+    assert free is not None
+    assert free["kind"] == "function"
+    assert free["type"] == "function_declaration"
+    assert free["name"] == "free"
+    assert "struct S" not in free["text"]
+
+    extension = _at(project, path, SWIFT_SOURCE, "extension S")
+    assert extension is not None
+    assert extension["kind"] == "class"
+    assert extension["type"] == "class_declaration"
+    assert extension["name"] == "S"
+    assert "func free" not in extension["text"]
+
+    computed = _at(project, path, SWIFT_SOURCE, "return 2")
+    assert computed is not None
+    assert computed["kind"] == "function"
+    assert computed["type"] == "computed_property"
+    assert computed["name"] == "x"
+    assert "struct S" not in computed["text"]
+
+    initializer = _at(project, path, SWIFT_SOURCE, "print(2)")
+    assert initializer is not None
+    assert initializer["kind"] == "function"
+    assert initializer["type"] == "init_declaration"
+    assert initializer["name"] == "init"
+    assert "class C" not in initializer["text"]
+
+
+DART_MEMBER_SOURCE = """void main() { print(1); }
+class C {
+  void m() { print(2); }
+  C() { print(3); }
+  C.named() { print(4); }
+  int get x { return 5; }
+}
+"""
+
+
+def test_dart_constructors_and_getters_are_named(tmp_path: Path) -> None:
+    project = "scope-dart-members"
+    path = _register(tmp_path, project, "members.dart", DART_MEMBER_SOURCE)
+
+    constructor = _at(project, path, DART_MEMBER_SOURCE, "print(3)")
+    assert constructor is not None
+    assert constructor["kind"] == "function"
+    assert constructor["type"] == "function_body"
+    assert constructor["name"] == "C"
+
+    named = _at(project, path, DART_MEMBER_SOURCE, "print(4)")
+    assert named is not None
+    assert named["name"] == "C.named"
+    assert named["type"] == "function_body"
+
+    getter = _at(project, path, DART_MEMBER_SOURCE, "return 5")
+    assert getter is not None
+    assert getter["name"] == "x"
+    assert getter["type"] == "function_body"
+
+    constructor_signature = _at(project, path, DART_MEMBER_SOURCE, "C.named")
+    assert constructor_signature is not None
+    assert constructor_signature["name"] == "C.named"
+    assert constructor_signature["type"] == "function_body"
+
+
+JULIA_SOURCE = """module M
+function foo(x)
+    return x
+end
+struct S
+    a::Int
+end
+f(y) = y + 1
+end
+"""
+
+
+def test_julia_names_and_short_function(tmp_path: Path) -> None:
+    project = "scope-julia"
+    path = _register(tmp_path, project, "sample.jl", JULIA_SOURCE)
+
+    function = _at(project, path, JULIA_SOURCE, "return x")
+    assert function is not None
+    assert function["kind"] == "function"
+    assert function["type"] == "function_definition"
+    assert function["name"] == "foo"
+    assert "struct S" not in function["text"]
+
+    struct = _at(project, path, JULIA_SOURCE, "a::Int")
+    assert struct is not None
+    assert struct["kind"] == "class"
+    assert struct["type"] == "struct_definition"
+    assert struct["name"] == "S"
+
+    short = _at(project, path, JULIA_SOURCE, "y + 1")
+    assert short is not None
+    assert short["kind"] == "function"
+    assert short["type"] == "assignment"
+    assert short["name"] == "f"
+    assert "function foo" not in short["text"]
+
+
+def test_cpp_template_line_uses_the_declaration(tmp_path: Path) -> None:
+    source = """namespace ns {}
+void ns::h() { return; }
+class C {
+  friend void pal() { return; }
+  void bar() { return; }
+};
+template<class T>
+void C::templ(T v) { return; }
+"""
+    project = "scope-cpp-template"
+    path = _register(tmp_path, project, "templ.cpp", source)
+
+    template = _at(project, path, source, "template<class T>")
+    assert template is not None
+    assert template["kind"] == "method"
+    assert template["type"] == "function_definition"
+    assert template["name"] == "templ"
+    assert "namespace ns" not in template["text"]
+
+    body = _at(project, path, source, "T v")
+    assert body is not None
+    assert body["name"] == "templ"
+    assert body["kind"] == "method"
+
+
+def test_kotlin_getter_uses_the_property_name(tmp_path: Path) -> None:
+    source = """class Box {
+    val name: String
+        get() = "x"
+}
+"""
+    project = "scope-kotlin-getter"
+    path = _register(tmp_path, project, "box.kt", source)
+    getter = _at(project, path, source, "get()")
+    assert getter is not None
+    assert getter["kind"] == "function"
+    assert getter["type"] == "getter"
+    assert getter["name"] == "name"
+    assert "class Box" not in getter["text"]
+
+
+def test_rust_impl_uses_the_type_name(tmp_path: Path) -> None:
+    source = """trait Tr { fn f(&self); }
+struct S { x: i32 }
+impl Tr for S {
+    fn f(&self) {}
+}
+impl S {
+    fn get(&self) -> i32 { self.x }
+}
+"""
+    project = "scope-rust-impl"
+    path = _register(tmp_path, project, "lib.rs", source)
+
+    trait_impl = _at(project, path, source, "impl Tr")
+    assert trait_impl is not None
+    assert trait_impl["kind"] == "class"
+    assert trait_impl["type"] == "impl_item"
+    assert trait_impl["name"] == "S"
+
+    plain = _at(project, path, source, "impl S")
+    assert plain is not None
+    assert plain["kind"] == "class"
+    assert plain["type"] == "impl_item"
+    assert plain["name"] == "S"
+    assert plain["text"] != trait_impl["text"]
 
 
 def test_scope_tables_drop_rejected_node_types() -> None:

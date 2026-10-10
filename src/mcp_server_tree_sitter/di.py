@@ -27,7 +27,9 @@ class DependencyContainer:
         self.config_manager = ConfigurationManager()
         self._config = self.config_manager.get_config()
         self.project_registry = ProjectRegistry()
-        self.language_registry = LanguageRegistry()
+        self.language_registry = LanguageRegistry(
+            prefer_installed_grammars=self._config.language.prefer_installed_grammars
+        )
         self.tree_cache = TreeCache(
             max_size_mb=self._config.cache.max_size_mb, ttl_seconds=self._config.cache.ttl_seconds
         )

@@ -112,11 +112,14 @@ The `preferred_languages` setting allows you to specify which language parsers s
 
 ```yaml
 language:
+  prefer_installed_grammars: false  # true prefers an installed tree-sitter-* package over the pack
   preferred_languages:
     - python
     - javascript
     - typescript
 ```
+
+`prefer_installed_grammars` is read when the server starts. The default keeps the language pack ahead of any installed `tree-sitter-*` package, so a stale standalone grammar cannot shadow the pack. Set it to `true` to prefer the installed package. A change applies on the next start.
 
 **Purpose and benefits:**
 

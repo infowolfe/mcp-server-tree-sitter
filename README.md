@@ -330,6 +330,7 @@ security:
 
 language:
   default_max_depth: 5         # Default max depth for AST traversal (default: 5)
+  prefer_installed_grammars: false  # false: language pack, then installed tree-sitter-* packages
   preferred_languages:         # List of languages to pre-load at startup for faster performance
     - python                   # Pre-loading reduces latency for first operations
     - javascript

@@ -78,7 +78,15 @@ SCOPE_TYPES: Dict[str, Dict[str, Tuple[str, ...]]] = {
     },
     "swift": {
         # No struct_declaration. class, struct, and extension are class_declaration.
-        "function": ("function_declaration", "computed_getter", "computed_setter"),
+        # Pack 1.21 emits computed_property and init_declaration. The getter and
+        # setter names are kept for grammars that still use them.
+        "function": (
+            "function_declaration",
+            "computed_property",
+            "init_declaration",
+            "computed_getter",
+            "computed_setter",
+        ),
         "class": ("class_declaration",),
         "module": ("source_file",),
     },

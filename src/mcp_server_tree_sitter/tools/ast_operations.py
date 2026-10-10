@@ -143,6 +143,12 @@ _C_DECLARATOR_WRAPPERS = {
     "parenthesized_declarator",
 }
 _DART_SIGNATURES = {"function_signature", "method_signature"}
+_DART_BODY_ANCHORS = _DART_SIGNATURES | {
+    "constructor_signature",
+    "getter_signature",
+    "setter_signature",
+}
+_CPP_TEMPLATE_SCOPES = ("function_definition", "class_specifier", "struct_specifier")
 
 
 def get_enclosing_scope(
@@ -202,12 +208,33 @@ def get_enclosing_scope(
     if here == end:
         return _scope_payload(root, "module", language, source_bytes, path, max_lines)
 
-    node = find_node_at_position(root, here[0], here[1])
+    node = _node_at_cursor(root, here, end)
     if node is None:
         return None
 
     scope_node, kind = _nearest_scope(language, node, root)
     return _scope_payload(scope_node, kind, language, source_bytes, path, max_lines)
+
+
+def _node_at_cursor(root: Any, here: tuple[int, int], end: tuple[int, int]) -> Optional[Any]:
+    """Return the node that starts at the cursor when a zero-width hit is an ancestor.
+
+    Some grammars answer descendant_for_point_range(point, point) with the
+    root even though a declaration starts on that point. A one-column range
+    returns the node that actually starts there.
+    """
+    node = find_node_at_position(root, here[0], here[1])
+    if node is None or _point_tuple(node.start_point) == here:
+        return node
+    wider_end = (here[0], here[1] + 1)
+    if _point_before(end, wider_end):
+        wider_end = end
+    if wider_end == here or _point_before(wider_end, here):
+        return node
+    wider = root.descendant_for_point_range(here, wider_end)
+    if wider is not None and _point_tuple(wider.start_point) == here:
+        return wider
+    return node
 
 
 def _point_tuple(point: Any) -> tuple[int, int]:
@@ -242,6 +269,22 @@ def _nearest_scope(language: str, node: Any, root: Any) -> tuple[Any, str]:
                 kind = _scope_kind(language, definition)
                 if kind is not None:
                     return definition, kind
+        # template<...> is a wrapper. The declaration it applies to is the scope.
+        if str(current.type) == "template_declaration":
+            for wrapped in _CPP_TEMPLATE_SCOPES:
+                definition = _child_of_type(current, wrapped)
+                if definition is None:
+                    continue
+                kind = _scope_kind(language, definition)
+                if kind is not None:
+                    return definition, kind
+        # A Dart signature does not contain its body. The body is the next sibling.
+        if language == "dart" and str(current.type) in _DART_BODY_ANCHORS:
+            body = _dart_body_after(current)
+            if body is not None:
+                kind = _scope_kind(language, body)
+                if kind is not None:
+                    return body, kind
         kind = _scope_kind(language, current)
         if kind is not None:
             return current, kind
@@ -252,6 +295,12 @@ def _nearest_scope(language: str, node: Any, root: Any) -> tuple[Any, str]:
 def _scope_kind(language: str, node: Any) -> Optional[str]:
     node_type = str(node.type)
     if language == "go" and node_type == "type_spec" and not _is_go_struct_spec(node):
+        return None
+
+    if language == "julia" and node_type == "assignment":
+        # f(y) = y + 1 is an assignment, not a function_definition.
+        if _julia_short_function(node):
+            return "function"
         return None
 
     kind = kind_for_node_type(language, node_type)
@@ -442,6 +491,22 @@ def _scope_name(language: str, node: Any, source_bytes: bytes) -> Optional[str]:
         if dart_name is not None:
             return dart_name
 
+    if language == "swift" and node.type == "computed_property":
+        property_name = _swift_property_name(node, source_bytes)
+        if property_name is not None:
+            return property_name
+
+    if language == "julia":
+        julia_name = _julia_name(node, source_bytes)
+        if julia_name is not None:
+            return julia_name
+
+    if language == "rust" and node.type == "impl_item":
+        # impl S stores the type in `type`. impl Trait for S does too.
+        named = node.child_by_field_name("name") or node.child_by_field_name("type")
+        if named is not None:
+            return _node_text(named, source_bytes) or None
+
     named = node.child_by_field_name("name")
     if named is None:
         return None
@@ -450,6 +515,9 @@ def _scope_name(language: str, node: Any, source_bytes: bytes) -> Optional[str]:
 
 def _kotlin_name(node: Any, source_bytes: bytes) -> Optional[str]:
     """Kotlin declarations have no name field."""
+    if node.type in ("getter", "setter"):
+        # The getter is the next sibling of the property, not a child of it.
+        return _preceding_property_name(node, source_bytes)
     if node.type == "function_declaration":
         wanted = "simple_identifier"
     elif node.type == "class_declaration":
@@ -460,6 +528,117 @@ def _kotlin_name(node: Any, source_bytes: bytes) -> Optional[str]:
         child = node.child(index)
         if child is not None and child.type == wanted:
             return _node_text(child, source_bytes) or None
+    return None
+
+
+def _preceding_property_name(node: Any, source_bytes: bytes) -> Optional[str]:
+    parent = node.parent
+    if parent is None:
+        return None
+    previous = None
+    for index in range(parent.child_count):
+        child = parent.child(index)
+        if child is None:
+            continue
+        if child.start_byte == node.start_byte and child.type == node.type:
+            break
+        if child.type == "property_declaration":
+            previous = child
+    if previous is None:
+        return None
+    ident = _first_descendant(previous, "simple_identifier")
+    if ident is None:
+        return None
+    return _node_text(ident, source_bytes) or None
+
+
+def _swift_property_name(node: Any, source_bytes: bytes) -> Optional[str]:
+    parent = node.parent
+    if parent is None or parent.type != "property_declaration":
+        return None
+    named = parent.child_by_field_name("name")
+    if named is None:
+        return None
+    return _node_text(named, source_bytes) or None
+
+
+def _julia_short_function(node: Any) -> bool:
+    for index in range(node.child_count):
+        child = node.child(index)
+        if child is None:
+            continue
+        if child.type in ("=", "operator"):
+            return False
+        if child.type == "call_expression":
+            return True
+    return False
+
+
+def _julia_name(node: Any, source_bytes: bytes) -> Optional[str]:
+    if node.type == "function_definition":
+        signature = _child_of_type(node, "signature")
+        call = _child_of_type(signature, "call_expression") if signature is not None else None
+        return _call_callee_name(call, source_bytes)
+    if node.type == "struct_definition":
+        head = _child_of_type(node, "type_head")
+        ident = _child_of_type(head, "identifier") if head is not None else None
+        if ident is None:
+            return None
+        return _node_text(ident, source_bytes) or None
+    if node.type == "assignment" and _julia_short_function(node):
+        return _call_callee_name(_child_of_type(node, "call_expression"), source_bytes)
+    return None
+
+
+def _call_callee_name(call: Any, source_bytes: bytes) -> Optional[str]:
+    """The callee is the first identifier. Later identifiers are arguments."""
+    if call is None:
+        return None
+    for index in range(call.child_count):
+        child = call.child(index)
+        if child is not None and child.type == "identifier":
+            return _node_text(child, source_bytes) or None
+    return None
+
+
+def _first_descendant(node: Any, node_type: str) -> Optional[Any]:
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current.type == node_type:
+            return current
+        children = []
+        for index in range(current.child_count):
+            child = current.child(index)
+            if child is not None:
+                children.append(child)
+        stack.extend(reversed(children))
+    return None
+
+
+def _dart_body_after(node: Any) -> Optional[Any]:
+    current = node
+    while current is not None and str(current.type) in _DART_BODY_ANCHORS:
+        parent = current.parent
+        if parent is None:
+            return None
+        seen = False
+        for index in range(parent.child_count):
+            child = parent.child(index)
+            if child is None:
+                continue
+            if not seen:
+                if child.start_byte == current.start_byte and child.type == current.type:
+                    seen = True
+                continue
+            if child.type == "function_body":
+                return child
+            if str(child.type) in _DART_BODY_ANCHORS:
+                break
+        if str(parent.type) in _DART_BODY_ANCHORS:
+            current = parent
+            continue
+        return None
     return None
 
 
@@ -486,12 +665,37 @@ def _dart_function_name(node: Any, source_bytes: bytes) -> Optional[str]:
         return _node_text(named, source_bytes) or None
     for index in range(signature.child_count):
         child = signature.child(index)
-        if child is None or child.type != "function_signature":
+        if child is None:
             continue
-        named = child.child_by_field_name("name")
-        if named is not None:
-            return _node_text(named, source_bytes) or None
+        if child.type == "function_signature":
+            named = child.child_by_field_name("name")
+            if named is not None:
+                return _node_text(named, source_bytes) or None
+        elif child.type == "constructor_signature":
+            return _dart_constructor_name(child, source_bytes)
+        elif child.type in ("getter_signature", "setter_signature"):
+            named = child.child_by_field_name("name")
+            if named is not None:
+                return _node_text(named, source_bytes) or None
     return None
+
+
+def _dart_constructor_name(node: Any, source_bytes: bytes) -> Optional[str]:
+    """Join C and C.named. The name field alone is only the type identifier."""
+    parts: list[str] = []
+    for index in range(node.child_count):
+        child = node.child(index)
+        if child is None:
+            continue
+        if child.type == "identifier":
+            parts.append(_node_text(child, source_bytes))
+        elif child.type == ".":
+            parts.append(".")
+        elif child.type == "formal_parameter_list":
+            break
+    if not parts:
+        return None
+    return "".join(parts) or None
 
 
 def _node_text(node: Any, source_bytes: bytes) -> str:
