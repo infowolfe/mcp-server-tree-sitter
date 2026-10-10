@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "mcp[cli]>=1.23.0",
+    "mcp[cli]>=1.23.0,<2",
     # Pinned below 0.25 deliberately: 0.25 changed Parser.parse() to require
     # str instead of bytes, which breaks the entire test suite. The migration
     # is tracked separately; until then, CI must use 0.24.x to stay green.
