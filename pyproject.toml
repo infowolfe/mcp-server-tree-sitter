@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp-server-tree-sitter"
-version = "0.7.0"
+name = "tree-sitter-mcp-ng"
+version = "0.7.1"
 description = "MCP Server for Tree-sitter code analysis"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -51,8 +51,8 @@ languages = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/wrale/mcp-server-tree-sitter"
-"Bug Tracker" = "https://github.com/wrale/mcp-server-tree-sitter/issues"
+"Homepage" = "https://github.com/infowolfe/mcp-server-tree-sitter"
+"Bug Tracker" = "https://github.com/infowolfe/mcp-server-tree-sitter/issues"
 
 [project.scripts]
 mcp-server-tree-sitter = "mcp_server_tree_sitter.server:main"

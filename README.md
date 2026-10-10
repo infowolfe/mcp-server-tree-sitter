@@ -27,13 +27,13 @@ For a comprehensive list of all available commands, their current implementation
 ### Basic Installation
 
 ```bash
-pip install mcp-server-tree-sitter
+pip install tree-sitter-mcp-ng
 ```
 
 ### Development Installation
 
 ```bash
-git clone https://github.com/wrale/mcp-server-tree-sitter.git
+git clone https://github.com/infowolfe/mcp-server-tree-sitter.git
 cd mcp-server-tree-sitter
 pip install -e ".[dev]"
 ```
@@ -118,6 +118,7 @@ If you prefer not to manually install the package from PyPI (released version) o
                "command": "uvx",
                "args": [
                    "--directory", "/ABSOLUTE/PATH/TO/YOUR/PROJECT",
+                   "--from", "tree-sitter-mcp-ng",
                    "mcp-server-tree-sitter"
                ]
            }
@@ -462,8 +463,8 @@ The server provides the following MCP prompts:
 
 We'd love to hear how you're using mcp-server-tree-sitter and what would make it more useful for your workflow.
 
-- **Questions & Feature Requests**: [GitHub Discussions](https://github.com/wrale/mcp-server-tree-sitter/discussions)
-- **Bug Reports**: [GitHub Issues](https://github.com/wrale/mcp-server-tree-sitter/issues)
+- **Questions & Feature Requests**: [GitHub Discussions](https://github.com/infowolfe/mcp-server-tree-sitter/discussions)
+- **Bug Reports**: [GitHub Issues](https://github.com/infowolfe/mcp-server-tree-sitter/issues)
 
 ## License
 
