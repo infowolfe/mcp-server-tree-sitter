@@ -6,7 +6,7 @@ A Model Context Protocol (MCP) server that provides code analysis capabilities u
 
 - 🔍 **Flexible Exploration**: Examine code at multiple levels of granularity
 - 🧠 **Context Management**: Provides just enough information without overwhelming the context window
-- 🌐 **Language Agnostic**: Supports many programming languages including Python, JavaScript, TypeScript, TSX, Go, Rust, C, C++, C#, Swift, Java, Kotlin, Dart, Julia, CSS, SCSS, and APL via tree-sitter-language-pack
+- 🌐 **Language Agnostic**: Supports many programming languages including Python, JavaScript, TypeScript, TSX, Go, Rust, C, C++, C#, Swift, Java, Kotlin, Dart, Julia, CSS, SCSS, Clojure, and APL via tree-sitter-language-pack
 - 🌳 **Structure-Aware**: Uses AST-based understanding with efficient cursor-based traversal
 - 🔎 **Searchable**: Find specific patterns using text search and tree-sitter queries
 - 🔄 **Caching**: Optimized performance through parse tree caching

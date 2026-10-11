@@ -51,6 +51,66 @@ def _captures(language: str, source: str, template_names: list[str]) -> Dict[str
     return found
 
 
+def test_clojure_definition_captures() -> None:
+    source = """
+(ns demo.core)
+(require 'clojure.string)
+(import java.util.Date)
+(use clojure.set)
+(defn greet
+  "Say hi."
+  [name]
+  (str "hi " name))
+(defn- hidden [x] x)
+(fn [x] x)
+(defmacro when-let [binding & body] body)
+(defprotocol Greet (hello [this]))
+(defrecord Person [name])
+(deftype Box [value])
+(extend-protocol Greet Person (hello [this] name))
+(swap! state inc)
+(reset! state 1)
+{:a 1}
+#{1}
+"""
+    found = _captures(
+        "clojure",
+        source,
+        ["functions", "namespaces", "imports", "macros", "protocols", "atoms", "data_structures"],
+    )
+    assert found["function.name"] == {"greet", "hidden"}
+    assert found["namespace.name"] == {"demo.core"}
+    assert found["import.module"] == {"'clojure.string", "clojure.set"}
+    assert found["import.class"] == {"java.util.Date"}
+    assert found["macro.name"] == {"when-let"}
+    assert found["protocol.name"] == {"Greet"}
+    assert found["record.name"] == {"Person"}
+    assert found["type.name"] == {"Box"}
+    assert found["atom.name"] == {"state"}
+    assert "{:a 1}" in found["data.map"]
+    assert "#{1}" in found["data.set"]
+    assert "bindings" not in QUERY_TEMPLATES["clojure"]
+    meta = _captures(
+        "clojure",
+        "(defn ^String greet [x] x)\n(defmacro ^:private m [x] x)\n(ns ^:private demo.core)\n",
+        ["functions", "macros", "namespaces"],
+    )
+    assert meta["function.name"] == {"greet"}
+    assert meta["macro.name"] == {"m"}
+    assert meta["namespace.name"] == {"demo.core"}
+    qualified = _captures(
+        "clojure",
+        "(swap! left/state inc)\n(reset! right/state 0)\n"
+        "(extend-protocol demo/Greet Person)\n(defn my.ns/greet [x] x)\n",
+        ["atoms", "protocols", "functions"],
+    )
+    assert qualified["atom.name"] == {"left/state", "right/state"}
+    assert qualified["extend.protocol"] == {"demo/Greet"}
+    assert qualified["function.name"] == {"my.ns/greet"}
+    meta_qualified = _captures("clojure", "(swap! ^:private left/state inc)\n", ["atoms"])
+    assert meta_qualified["atom.name"] == {"state"}
+
+
 def test_javascript_import_captures() -> None:
     source = "import { a as b, c } from './x';\nimport * as ns from './y';\nimport d from './z';\nimport './side';\n"
     found = _captures("javascript", source, ["imports"])

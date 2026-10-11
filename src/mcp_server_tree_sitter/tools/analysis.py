@@ -85,6 +85,8 @@ def extract_symbols(
             symbol_types = ["functions", "modules", "structs", "imports"]
         elif language == "apl":
             symbol_types = ["functions", "namespaces", "variables", "imports"]
+        elif language == "clojure":
+            symbol_types = ["functions", "namespaces", "imports", "macros", "protocols"]
         else:
             symbol_types = ["functions", "classes", "imports"]
 

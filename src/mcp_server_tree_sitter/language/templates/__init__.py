@@ -5,6 +5,7 @@ from typing import Dict
 from . import (
     apl,
     c,
+    clojure,
     cpp,
     csharp,
     css,
@@ -39,6 +40,7 @@ QUERY_TEMPLATES: Dict[str, Dict[str, str]] = {
     "c": c.TEMPLATES,
     "cpp": cpp.TEMPLATES,
     "csharp": csharp.TEMPLATES,
+    "clojure": clojure.TEMPLATES,
     "dart": dart.TEMPLATES,
     "swift": swift.TEMPLATES,
     "java": java.TEMPLATES,
