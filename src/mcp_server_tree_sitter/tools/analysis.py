@@ -63,6 +63,14 @@ def extract_symbols(
             symbol_types = ["functions", "classes", "structs", "imports"]
         elif language == "typescript":
             symbol_types = ["functions", "classes", "interfaces", "imports"]
+        elif language == "tsx":
+            symbol_types = ["functions", "classes", "interfaces", "imports", "jsx"]
+        elif language == "css":
+            symbol_types = ["rules", "classes"]
+        elif language == "css_modules":
+            symbol_types = ["classes"]
+        elif language in ("scss", "scss_modules"):
+            symbol_types = ["rules", "variables"]
         elif language == "swift":
             symbol_types = ["functions", "classes", "structs", "imports"]
         elif language == "java":

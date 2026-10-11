@@ -229,7 +229,13 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
 
     # AST Analysis Tools
     @mcp_server.tool()
-    def get_ast(project: str, path: str, max_depth: Optional[int] = None, include_text: bool = True) -> Dict[str, Any]:
+    def get_ast(
+        project: str,
+        path: str,
+        max_depth: Optional[int] = None,
+        include_text: bool = True,
+        language: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Get abstract syntax tree for a file.
 
         Args:
@@ -237,6 +243,7 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
             path: File path relative to project root
             max_depth: Maximum depth of the tree (default: 5)
             include_text: Whether to include node text
+            language: Grammar id to use instead of the filename
 
         Returns:
             AST as a nested dictionary
@@ -253,6 +260,7 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
             tree_cache,
             max_depth=depth,
             include_text=include_text,
+            language=language,
         )
 
     @mcp_server.tool()

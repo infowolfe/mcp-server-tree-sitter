@@ -23,6 +23,7 @@ def get_file_ast(
     tree_cache: Any,
     max_depth: Optional[int] = None,
     include_text: bool = True,
+    language: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get the AST for a file.
@@ -34,6 +35,7 @@ def get_file_ast(
         tree_cache: Tree cache instance
         max_depth: Maximum depth to traverse the tree
         include_text: Whether to include node text
+        language: Grammar id to use instead of the filename
 
     Returns:
         AST as a nested dictionary
@@ -49,7 +51,8 @@ def get_file_ast(
     except Exception as e:
         raise FileAccessError(f"Access denied: {e}") from e
 
-    language = language_registry.language_for_file(path)
+    if not language:
+        language = language_registry.language_for_file(path)
     if not language:
         raise ParsingError(f"Could not detect language for {path}")
 

@@ -303,11 +303,7 @@ def query_code(
         if not language:
             raise QueryError("Language is required when file_path is not provided")
 
-        # Find all matching files for the language
-        extensions = [(ext, lang) for ext, lang in language_registry._language_map.items() if lang == language]
-
-        if not extensions:
-            raise QueryError(f"No file extensions found for language {language}")
+        files_to_process = _files_for_language(root, language_registry, language)
 
         # Process files in parallel
         def process_file(rel_path: str) -> List[Dict[str, Any]]:
@@ -328,13 +324,6 @@ def query_code(
                 # Skip files that can't be queried
                 return []
 
-        # Collect files to process
-        files_to_process = []
-        for ext, _ in extensions:
-            for path in root.glob(f"**/*.{ext}"):
-                if path.is_file():
-                    files_to_process.append(str(path.relative_to(root)))
-
         # Process files until we reach max_results
         for file in files_to_process:
             try:
@@ -348,6 +337,35 @@ def query_code(
                 continue
 
     return results[:max_results] if max_results is not None else results
+
+
+def _files_for_language(root: Any, language_registry: Any, language: str) -> List[str]:
+    """Return project files whose detected language is exactly `language`.
+
+    A `*.scss` glob also matches `styles.module.scss`. The detected id, not
+    the glob, decides whether that file belongs to `scss` or `scss_modules`.
+    """
+    suffixes = language_registry.extensions_for_language(language)
+    if not suffixes:
+        raise QueryError(f"No file extensions found for language {language}")
+    seen: set[str] = set()
+    files: List[str] = []
+    for ext in suffixes:
+        patterns = [f"**/*.{ext}"]
+        if "." in ext:
+            patterns.append(f"**/{ext}")
+        for pattern in patterns:
+            for path in root.glob(pattern):
+                if not path.is_file():
+                    continue
+                rel = str(path.relative_to(root))
+                if rel in seen:
+                    continue
+                if language_registry.language_for_file(rel) != language:
+                    continue
+                seen.add(rel)
+                files.append(rel)
+    return files
 
 
 def _extract_ast_fingerprint(node: Any, source_bytes: bytes) -> set:
@@ -445,58 +463,48 @@ def find_similar_code(
     root = project.root_path
     results: List[Dict[str, Any]] = []
 
-    # Find files for this language
-    extensions = [ext for ext, lang in language_registry._language_map.items() if lang == language]
-    if not extensions:
-        raise QueryError(f"No file extensions found for language {language}")
+    for rel_path in _files_for_language(root, language_registry, language):
+        file_path = root / rel_path
+        try:
+            validate_file_access(file_path, root)
 
-    for ext in extensions:
-        for file_path in root.glob(f"**/*.{ext}"):
-            if not file_path.is_file():
-                continue
+            # Parse file
+            cached = tree_cache.get(file_path, language)
+            if cached:
+                tree, source_bytes = cached
+            else:
+                with open(file_path, "rb") as f:
+                    source_bytes = f.read()
+                tree = parse_source(source_bytes, parser)
+                tree_cache.put(file_path, language, tree, source_bytes)
 
-            rel_path = str(file_path.relative_to(root))
+            # Compare each top-level block against the snippet
+            for block in _iter_top_level_blocks(tree):
+                block_fp = _extract_ast_fingerprint(block, source_bytes)
+                if not block_fp:
+                    continue
 
-            try:
-                validate_file_access(file_path, root)
+                # Containment similarity: what fraction of the snippet's
+                # fingerprint is found in the candidate block. This handles
+                # asymmetric sizes well — a short snippet can match a long
+                # function if the snippet's structure is contained within it.
+                intersection = len(snippet_fp & block_fp)
+                similarity = intersection / len(snippet_fp) if snippet_fp else 0.0
 
-                # Parse file
-                cached = tree_cache.get(file_path, language)
-                if cached:
-                    tree, source_bytes = cached
-                else:
-                    with open(file_path, "rb") as f:
-                        source_bytes = f.read()
-                    tree = parse_source(source_bytes, parser)
-                    tree_cache.put(file_path, language, tree, source_bytes)
-
-                # Compare each top-level block against the snippet
-                for block in _iter_top_level_blocks(tree):
-                    block_fp = _extract_ast_fingerprint(block, source_bytes)
-                    if not block_fp:
-                        continue
-
-                    # Containment similarity: what fraction of the snippet's
-                    # fingerprint is found in the candidate block. This handles
-                    # asymmetric sizes well — a short snippet can match a long
-                    # function if the snippet's structure is contained within it.
-                    intersection = len(snippet_fp & block_fp)
-                    similarity = intersection / len(snippet_fp) if snippet_fp else 0.0
-
-                    if similarity >= threshold:
-                        block_text = source_bytes[block.start_byte : block.end_byte].decode("utf-8", errors="replace")
-                        results.append(
-                            {
-                                "file": rel_path,
-                                "start": {"row": block.start_point[0], "column": block.start_point[1]},
-                                "end": {"row": block.end_point[0], "column": block.end_point[1]},
-                                "similarity": round(similarity, 3),
-                                "node_type": block.type,
-                                "text": block_text[:500],
-                            }
-                        )
-            except (SecurityError, Exception):
-                continue
+                if similarity >= threshold:
+                    block_text = source_bytes[block.start_byte : block.end_byte].decode("utf-8", errors="replace")
+                    results.append(
+                        {
+                            "file": rel_path,
+                            "start": {"row": block.start_point[0], "column": block.start_point[1]},
+                            "end": {"row": block.end_point[0], "column": block.end_point[1]},
+                            "similarity": round(similarity, 3),
+                            "node_type": block.type,
+                            "text": block_text[:500],
+                        }
+                    )
+        except (SecurityError, Exception):
+            continue
 
     results.sort(key=lambda x: x["similarity"], reverse=True)
     return results[:max_results]

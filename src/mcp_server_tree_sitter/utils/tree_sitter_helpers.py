@@ -561,30 +561,9 @@ def parse_file_with_detection(file_path: Path, language: Optional[str], registry
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    # Auto-detect language if not provided
     if language is None:
-        ext = file_path.suffix.lower()
-        if ext == ".py":
-            language = "python"
-        elif ext in [".js", ".jsx"]:
-            language = "javascript"
-        elif ext in [".ts", ".tsx"]:
-            language = "typescript"
-        elif ext in [".java"]:
-            language = "java"
-        elif ext in [".c", ".h"]:
-            language = "c"
-        elif ext in [".cpp", ".hpp", ".cc", ".hh"]:
-            language = "cpp"
-        elif ext in [".go"]:
-            language = "go"
-        elif ext in [".rs"]:
-            language = "rust"
-        elif ext in [".rb"]:
-            language = "ruby"
-        elif ext in [".php"]:
-            language = "php"
-        else:
+        language = registry.language_for_file(str(file_path))
+        if not language:
             raise ValueError(f"Could not detect language for file: {file_path}")
 
     if language is None:

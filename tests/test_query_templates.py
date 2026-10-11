@@ -13,11 +13,16 @@ UNLOADABLE = {"apl"}
 
 
 def test_every_template_compiles() -> None:
-    """Every bundled template must compile. APL is the only language with no grammar."""
+    """Every bundled template must compile. APL is the only language with no grammar.
+
+    css_modules and scss_modules are not pack ids. The registry aliases them
+    to the css and scss grammars.
+    """
+    registry = LanguageRegistry()
     unloadable = set()
     for language in sorted(QUERY_TEMPLATES):
         try:
-            language_obj = get_language(language)
+            language_obj = registry.get_language(language)
         except Exception as exc:
             unloadable.add(language)
             assert language in UNLOADABLE, f"{language} failed to load: {exc}"
@@ -42,7 +47,7 @@ def _captures(language: str, source: str, template_names: list[str]) -> Dict[str
     for name in template_names:
         query = Query(language_obj, QUERY_TEMPLATES[language][name])
         for capture, nodes in QueryCursor(query).captures(tree.root_node).items():
-            found.setdefault(capture, set()).update(node.text.decode() for node in nodes)
+            found.setdefault(capture, set()).update(node.text.decode() for node in nodes if node.text is not None)
     return found
 
 

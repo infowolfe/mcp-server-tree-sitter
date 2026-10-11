@@ -192,7 +192,13 @@ def get_file_metadata(project: str, path: str) -> Dict[str, Any]:
 
 
 # AST Analysis
-def get_ast(project: str, path: str, max_depth: Optional[int] = None, include_text: bool = True) -> Dict[str, Any]:
+def get_ast(
+    project: str,
+    path: str,
+    max_depth: Optional[int] = None,
+    include_text: bool = True,
+    language: Optional[str] = None,
+) -> Dict[str, Any]:
     """Get abstract syntax tree for a file."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -208,6 +214,7 @@ def get_ast(project: str, path: str, max_depth: Optional[int] = None, include_te
         tree_cache,
         max_depth=depth,
         include_text=include_text,
+        language=language,
     )
 
 
