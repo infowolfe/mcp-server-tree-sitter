@@ -60,6 +60,16 @@ def temp_config(**kwargs):
     container = get_container()
     config_manager = container.config_manager
     original_values = {}
+    saved_config = {}
+    current = config_manager.get_config()
+    for key in kwargs:
+        parts = key.split(".")
+        if len(parts) == 2 and hasattr(current, parts[0]):
+            section_obj = getattr(current, parts[0])
+            if hasattr(section_obj, parts[1]):
+                saved_config[key] = getattr(section_obj, parts[1])
+        elif hasattr(current, key):
+            saved_config[key] = getattr(current, key)
 
     # Apply configuration changes
     for key, value in kwargs.items():
@@ -67,6 +77,8 @@ def temp_config(**kwargs):
         if key == "cache.enabled":
             original_values["tree_cache.enabled"] = container.tree_cache.enabled
             container.tree_cache.set_enabled(value)
+            original_values["content_cache.enabled"] = container.content_cache.enabled
+            container.content_cache.set_enabled(value)
 
         if key == "cache.max_size_mb":
             original_values["tree_cache.max_size_mb"] = container.tree_cache._get_max_size_mb()
@@ -94,6 +106,8 @@ def temp_config(**kwargs):
         for key, value in original_values.items():
             if key == "tree_cache.enabled":
                 container.tree_cache.set_enabled(value)
+            elif key == "content_cache.enabled":
+                container.content_cache.set_enabled(value)
             elif key == "tree_cache.max_size_mb":
                 container.tree_cache.set_max_size_mb(value)
             elif key == "root_logger_level":
@@ -102,27 +116,8 @@ def temp_config(**kwargs):
                 root_logger.setLevel(value)
                 logging.debug(f"Restored root logger level to {value} in temp_config")
 
-        # Re-apply original config values to config manager
-        current_config = container.get_config()
-        for key, _value in kwargs.items():
-            parts = key.split(".")
-            if len(parts) == 2:
-                section, setting = parts
-                if hasattr(current_config, section):
-                    section_obj = getattr(current_config, section)
-                    if hasattr(section_obj, setting):
-                        # Get the original value from container's config
-                        original_config = container.config_manager.get_config()
-                        original_section = getattr(original_config, section, None)
-                        if original_section and hasattr(original_section, setting):
-                            original_value = getattr(original_section, setting)
-                            config_manager.update_value(key, original_value)
-            elif hasattr(current_config, key):
-                # Handle top-level attributes like log_level
-                original_config = container.config_manager.get_config()
-                if hasattr(original_config, key):
-                    original_value = getattr(original_config, key)
-                    config_manager.update_value(key, original_value)
+        for key, original_value in saved_config.items():
+            config_manager.update_value(key, original_value)
 
 
 # Project Management Tools
@@ -470,6 +465,7 @@ def configure(
         logging.info(f"Setting cache.enabled to {cache_enabled}")
         config_manager.update_value("cache.enabled", cache_enabled)
         container.tree_cache.set_enabled(cache_enabled)
+        container.content_cache.set_enabled(cache_enabled)
 
     if max_file_size_mb is not None:
         logging.info(f"Setting security.max_file_size_mb to {max_file_size_mb}")

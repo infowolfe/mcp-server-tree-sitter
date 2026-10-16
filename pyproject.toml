@@ -4,13 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tree-sitter-mcp-ng"
-version = "0.7.1"
+version = "0.8.0"
 description = "MCP Server for Tree-sitter code analysis"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Wrale LTD", email = "contact@wrale.com"}
+    {name = "Wrale LTD", email = "contact@wrale.com"},
+    {name = "A. Parker", email = "infowolfe@gmail.com"},
+]
+maintainers = [
+    {name = "A. Parker", email = "infowolfe@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -23,9 +27,6 @@ classifiers = [
 ]
 dependencies = [
     "mcp[cli]>=1.23.0,<2",
-    # Pinned below 0.25 deliberately: 0.25 changed Parser.parse() to require
-    # str instead of bytes, which breaks the entire test suite. The migration
-    # is tracked separately; until then, CI must use 0.24.x to stay green.
     "tree-sitter>=0.26,<0.27",
     "tree-sitter-language-pack>=1.21.0",
     "pyyaml>=6.0",
@@ -52,6 +53,7 @@ languages = [
 
 [project.urls]
 "Homepage" = "https://github.com/infowolfe/mcp-server-tree-sitter"
+"Repository" = "https://github.com/infowolfe/mcp-server-tree-sitter"
 "Bug Tracker" = "https://github.com/infowolfe/mcp-server-tree-sitter/issues"
 
 [project.scripts]

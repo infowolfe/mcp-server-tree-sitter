@@ -2,21 +2,118 @@
 
 import os
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from ..exceptions import SecurityError
 from ..language.query_templates import get_query_template
 from ..utils.context import MCPContext
-from ..utils.file_io import get_comment_prefix, read_text_file
+from ..utils.file_io import get_comment_prefix
 from ..utils.security import validate_file_access
 from ..utils.tree_sitter_helpers import (
+    create_parser,
     create_query,
     ensure_language,
     ensure_node,
     get_node_text,
+    parse_source,
     parse_with_cached_tree,
     query_captures,
 )
+
+_PYTHON_ALIASED_IMPORT_QUERY = """
+                (import_from_statement
+                    module_name: (dotted_name) @import.from
+                    name: (aliased_import)) @import
+                """
+
+_PYTHON_ALIAS_QUERY = "(aliased_import) @alias"
+
+_COMPLEXITY_NODES = {
+    "python": [
+        "if_statement",
+        "for_statement",
+        "while_statement",
+        "try_statement",
+    ],
+    "javascript": [
+        "if_statement",
+        "for_statement",
+        "while_statement",
+        "try_statement",
+    ],
+    "typescript": [
+        "if_statement",
+        "for_statement",
+        "while_statement",
+        "try_statement",
+    ],
+}
+
+
+def _disk_cache() -> Any:
+    from ..di import get_container
+
+    return get_container().content_cache
+
+
+def _tree_for_bytes(file_path: Any, language: str, source_bytes: bytes) -> Optional[Any]:
+    """Return a cached tree only when it was parsed from these exact bytes."""
+    from ..di import get_container
+
+    cached = get_container().tree_cache.get(file_path, language)
+    if cached is None:
+        return None
+    tree, stored = cached
+    if stored != source_bytes:
+        return None
+    return tree
+
+
+def _cache_identity(language: str, language_registry: Any, *parts: str) -> str:
+    prefer = bool(getattr(language_registry, "prefer_installed_grammars", False))
+    material = [language, f"prefer_installed={int(prefer)}", *parts]
+    return "\0".join(material)
+
+
+def _symbol_identity(
+    language: str,
+    language_registry: Any,
+    symbol_types: List[str],
+    exclude_class_methods: bool,
+    queries: Dict[str, str],
+) -> str:
+    material = [
+        ",".join(sorted(symbol_types)),
+        "exclude_methods" if exclude_class_methods else "keep_methods",
+    ]
+    for name in sorted(queries):
+        material.append(name)
+        material.append(queries[name])
+    if language == "python" and "imports" in queries:
+        material.append(_PYTHON_ALIASED_IMPORT_QUERY)
+        material.append(_PYTHON_ALIAS_QUERY)
+    return _cache_identity(language, language_registry, *material)
+
+
+def _dependency_identity(language: str, language_registry: Any, query_string: str) -> str:
+    material = [query_string]
+    if language == "python":
+        material.append(_PYTHON_ALIAS_QUERY)
+    return _cache_identity(language, language_registry, *material)
+
+
+def _complexity_identity(language: str, language_registry: Any) -> str:
+    nodes = ",".join(_COMPLEXITY_NODES.get(language, []))
+    function_query = get_query_template(language, "functions") or ""
+    class_query = get_query_template(language, "classes") or ""
+    return _cache_identity(
+        language,
+        language_registry,
+        "exclude_methods",
+        nodes,
+        function_query,
+        class_query,
+    )
 
 
 def extract_symbols(
@@ -25,6 +122,8 @@ def extract_symbols(
     language_registry: Any,
     symbol_types: Optional[List[str]] = None,
     exclude_class_methods: bool = False,
+    source_bytes: Optional[bytes] = None,
+    tree: Optional[Any] = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Extract symbols (functions, classes, etc) from a file.
@@ -35,6 +134,8 @@ def extract_symbols(
         language_registry: Language registry object
         symbol_types: Types of symbols to extract (functions, classes, imports, etc.)
         exclude_class_methods: Whether to exclude methods from function count
+        source_bytes: Bytes to analyze. When set, the path is not read again.
+        tree: Parse of ``source_bytes``. When set, those bytes are not parsed again.
 
     Returns:
         Dictionary of symbols by type
@@ -100,14 +201,25 @@ def extract_symbols(
     if not queries:
         raise ValueError(f"No query templates available for {language} and {symbol_types}")
 
+    identity = _symbol_identity(language, language_registry, symbol_types, exclude_class_methods, queries)
+    cached = _disk_cache().get(abs_path, "symbols", language, identity, source_bytes)
+    if cached is not None:
+        return cast(Dict[str, List[Dict[str, Any]]], cached)
+
     # Parse file and extract symbols
     try:
         # Get language object
         language_obj = language_registry.get_language(language)
         safe_lang = ensure_language(language_obj)
 
-        # Parse with cached tree
-        tree, source_bytes = parse_with_cached_tree(abs_path, language, safe_lang)
+        if source_bytes is None:
+            if tree is not None:
+                raise ValueError("source_bytes is required when a tree is provided")
+            tree, source_bytes = parse_with_cached_tree(abs_path, language, safe_lang)
+        elif tree is None:
+            tree = _tree_for_bytes(abs_path, language, source_bytes)
+            if tree is None:
+                tree = parse_source(source_bytes, create_parser(safe_lang))
 
         # Execute queries
         symbols: Dict[str, List[Dict[str, Any]]] = {}
@@ -160,13 +272,7 @@ def extract_symbols(
             # Handle aliased imports specifically for Python
             if symbol_type == "imports" and language == "python":
                 # Look for aliased imports that might have been missed
-                aliased_query_string = """
-                (import_from_statement
-                    module_name: (dotted_name) @import.from
-                    name: (aliased_import)) @import
-                """
-
-                aliased_query = create_query(safe_lang, aliased_query_string)
+                aliased_query = create_query(safe_lang, _PYTHON_ALIASED_IMPORT_QUERY)
                 aliased_matches = query_captures(aliased_query, tree.root_node)
 
                 for match in aliased_matches:
@@ -204,8 +310,7 @@ def extract_symbols(
                         )
 
                 # Additionally, run a query to get all aliased imports directly
-                alias_query_string = "(aliased_import) @alias"
-                alias_query = create_query(safe_lang, alias_query_string)
+                alias_query = create_query(safe_lang, _PYTHON_ALIAS_QUERY)
                 alias_matches = query_captures(alias_query, tree.root_node)
 
                 for match in alias_matches:
@@ -270,6 +375,7 @@ def extract_symbols(
                                 }
                             )
 
+        _disk_cache().put(source_bytes, "symbols", language, identity, symbols)
         return symbols
 
     except Exception as e:
@@ -640,6 +746,11 @@ def find_dependencies(
     if not query_string:
         raise ValueError(f"Import query not available for {language}")
 
+    identity = _dependency_identity(language, language_registry, query_string)
+    cached = _disk_cache().get(abs_path, "dependencies", language, identity)
+    if cached is not None:
+        return cast(Dict[str, List[str]], cached)
+
     # Parse file and extract imports
     try:
         # Get language object
@@ -767,8 +878,7 @@ def find_dependencies(
         # For Python, specifically check for aliased imports
         if language == "python":
             # Look for aliased imports directly
-            aliased_query_string = "(aliased_import) @alias"
-            aliased_query = create_query(safe_lang, aliased_query_string)
+            aliased_query = create_query(safe_lang, _PYTHON_ALIAS_QUERY)
             aliased_matches = query_captures(aliased_query, tree.root_node)
 
             # Process aliased imports
@@ -807,7 +917,9 @@ def find_dependencies(
                 module_list = list(module_imports)
                 imports["module"] = list(set(imports.get("module", []) + module_list))
 
-        return dict(imports)
+        result = dict(imports)
+        _disk_cache().put(source_bytes, "dependencies", language, identity, result)
+        return result
 
     except Exception as e:
         raise ValueError(f"Error finding dependencies in {file_path}: {e}") from e
@@ -840,6 +952,11 @@ def analyze_code_complexity(
     if not language:
         raise ValueError(f"Could not detect language for {file_path}")
 
+    identity = _complexity_identity(language, language_registry)
+    cached = _disk_cache().get(abs_path, "complexity", language, identity)
+    if cached is not None:
+        return cast(Dict[str, Any], cached)
+
     # Parse file
     try:
         # Get language object
@@ -849,9 +966,8 @@ def analyze_code_complexity(
         # Parse with cached tree
         tree, source_bytes = parse_with_cached_tree(abs_path, language, safe_lang)
 
-        # Calculate basic metrics
-        # Read lines from file using utility
-        lines = read_text_file(abs_path)
+        # Calculate basic metrics from the same bytes the tree came from.
+        lines = source_bytes.decode("utf-8", errors="replace").splitlines()
 
         line_count = len(lines)
         empty_lines = sum(1 for line in lines if line.strip() == "")
@@ -870,38 +986,18 @@ def analyze_code_complexity(
             language_registry,
             ["functions", "classes"],
             exclude_class_methods=True,
+            source_bytes=source_bytes,
+            tree=tree,
         )
         function_count = len(symbols.get("functions", []))
         class_count = len(symbols.get("classes", []))
 
         # Calculate cyclomatic complexity using AST
-        complexity_nodes = {
-            "python": [
-                "if_statement",
-                "for_statement",
-                "while_statement",
-                "try_statement",
-            ],
-            "javascript": [
-                "if_statement",
-                "for_statement",
-                "while_statement",
-                "try_statement",
-            ],
-            "typescript": [
-                "if_statement",
-                "for_statement",
-                "while_statement",
-                "try_statement",
-            ],
-            # Add more languages...
-        }
-
         cyclomatic_complexity = 1  # Base complexity
 
-        if language in complexity_nodes:
+        if language in _COMPLEXITY_NODES:
             # Count decision points
-            decision_types = complexity_nodes[language]
+            decision_types = _COMPLEXITY_NODES[language]
 
             def count_nodes(node: Any, types: List[str]) -> int:
                 safe_node = ensure_node(node)
@@ -923,7 +1019,7 @@ def analyze_code_complexity(
         # Estimate average function length
         avg_func_lines = float(code_lines / function_count if function_count > 0 else code_lines)
 
-        return {
+        result = {
             "line_count": line_count,
             "code_lines": code_lines,
             "empty_lines": empty_lines,
@@ -935,6 +1031,8 @@ def analyze_code_complexity(
             "cyclomatic_complexity": cyclomatic_complexity,
             "language": language,
         }
+        _disk_cache().put(source_bytes, "complexity", language, identity, result)
+        return result
 
     except Exception as e:
         raise ValueError(f"Error analyzing complexity in {file_path}: {e}") from e

@@ -20,6 +20,7 @@ def mock_container():
     # Set up mocks for required components
     container.config_manager = MagicMock()
     container.tree_cache = MagicMock()
+    container.content_cache = MagicMock()
 
     # Set up initial config with proper nested structure
     initial_config = MagicMock(spec=ServerConfig)

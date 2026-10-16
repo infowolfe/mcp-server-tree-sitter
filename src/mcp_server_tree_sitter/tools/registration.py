@@ -73,6 +73,7 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
             logger.info(f"Setting cache.enabled to {cache_enabled}")
             config_manager.update_value("cache.enabled", cache_enabled)
             tree_cache.set_enabled(cache_enabled)
+            container.content_cache.set_enabled(cache_enabled)
 
         if max_file_size_mb is not None:
             logger.info(f"Setting security.max_file_size_mb to {max_file_size_mb}")
@@ -653,7 +654,12 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
     # Cache Management
     @mcp_server.tool()
     def clear_cache(project: Optional[str] = None, file_path: Optional[str] = None) -> Dict[str, str]:
-        """Clear the parse tree cache.
+        """Clear cached parses and content-cache state.
+
+        A file drops that file's parse trees and its stat note. A project has
+        no path index, so that call clears every parse tree, every stat note,
+        and the shared result files. The same full clear runs when both
+        arguments are omitted.
 
         Args:
             project: Optional project to clear cache for
@@ -667,15 +673,17 @@ def register_tools(mcp_server: Any, container: DependencyContainer) -> None:
             project_obj = project_registry.get_project(project)
             abs_path = project_obj.get_file_path(file_path)
             tree_cache.invalidate(abs_path)
+            container.content_cache.invalidate(abs_path)
             message = f"Cache cleared for {file_path} in project {project}"
         elif project:
-            # Clear cache for entire project
             # No direct way to clear by project, so invalidate entire cache
             tree_cache.invalidate()
+            container.content_cache.invalidate()
             message = f"Cache cleared for project {project}"
         else:
             # Clear entire cache
             tree_cache.invalidate()
+            container.content_cache.invalidate()
             message = "All caches cleared"
 
         return {"status": "success", "message": message}

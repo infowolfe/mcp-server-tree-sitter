@@ -52,6 +52,7 @@ def mock_container():
     container.project_registry = MagicMock(spec=ProjectRegistry)
     container.language_registry = MagicMock(spec=LanguageRegistry)
     container.tree_cache = MagicMock(spec=TreeCache)
+    container.content_cache = MagicMock()
 
     # Set up config
     mock_config = MagicMock(spec=ServerConfig)
@@ -178,6 +179,32 @@ def test_configure_tool_updates_config(mock_mcp_server, mock_container):
     mock_container.config_manager.update_value.assert_any_call("security.max_file_size_mb", 10)
     mock_container.config_manager.update_value.assert_any_call("log_level", "DEBUG")
     mock_container.tree_cache.set_enabled.assert_called_with(False)
+    mock_container.content_cache.set_enabled.assert_called_with(False)
+
+
+def test_clear_cache_tool_drops_content_cache(mock_mcp_server, mock_container):
+    """A full clear drops parse trees and shared content-cache results."""
+    register_tools(mock_mcp_server, mock_container)
+
+    result = mock_mcp_server.tools["clear_cache"]()
+
+    mock_container.tree_cache.invalidate.assert_called_once_with()
+    mock_container.content_cache.invalidate.assert_called_once_with()
+    assert result == {"status": "success", "message": "All caches cleared"}
+
+
+def test_clear_cache_tool_for_file_drops_that_note(mock_mcp_server, mock_container):
+    """A file clear drops that file's parse trees and stat note."""
+    register_tools(mock_mcp_server, mock_container)
+    mock_project = mock_container.project_registry.get_project.return_value
+    mock_project.get_file_path.return_value = "/abs/file.py"
+
+    result = mock_mcp_server.tools["clear_cache"](project="test_project", file_path="file.py")
+
+    mock_container.tree_cache.invalidate.assert_called_once_with("/abs/file.py")
+    mock_container.content_cache.invalidate.assert_called_once_with("/abs/file.py")
+    assert result["status"] == "success"
+    assert "file.py" in result["message"]
 
 
 @patch("mcp_server_tree_sitter.tools.file_operations.list_project_files")

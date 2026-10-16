@@ -39,6 +39,7 @@ def mock_dependencies():
         "project_registry": project_registry,
         "language_registry": language_registry,
         "tree_cache": tree_cache,
+        "content_cache": MagicMock(),
     }
 
 
@@ -50,6 +51,7 @@ def server_context(mock_dependencies):
         project_registry=mock_dependencies["project_registry"],
         language_registry=mock_dependencies["language_registry"],
         tree_cache=mock_dependencies["tree_cache"],
+        content_cache=mock_dependencies["content_cache"],
     )
 
 
@@ -60,6 +62,7 @@ def test_server_context_initialization(mock_dependencies):
         project_registry=mock_dependencies["project_registry"],
         language_registry=mock_dependencies["language_registry"],
         tree_cache=mock_dependencies["tree_cache"],
+        content_cache=mock_dependencies["content_cache"],
     )
 
     assert context.config_manager is mock_dependencies["config_manager"]
@@ -168,12 +171,14 @@ def test_clear_cache_all(server_context, mock_dependencies):
     """Test that clear_cache clears all caches when no project/file is specified."""
     # Setup
     tree_cache = mock_dependencies["tree_cache"]
+    content_cache = mock_dependencies["content_cache"]
 
     # Call the method
     result = server_context.clear_cache()
 
     # Verify
     tree_cache.invalidate.assert_called_once_with()
+    content_cache.invalidate.assert_called_once_with()
     assert result == {"status": "success", "message": "Cache cleared"}
 
 
@@ -181,6 +186,7 @@ def test_clear_cache_for_file(server_context, mock_dependencies):
     """Test that clear_cache clears cache for a specific file."""
     # Setup
     tree_cache = mock_dependencies["tree_cache"]
+    content_cache = mock_dependencies["content_cache"]
     project_registry = mock_dependencies["project_registry"]
     mock_project = MagicMock()
     project_registry.get_project.return_value = mock_project
@@ -193,6 +199,7 @@ def test_clear_cache_for_file(server_context, mock_dependencies):
     project_registry.get_project.assert_called_once_with("test_project")
     mock_project.get_file_path.assert_called_once_with("file.py")
     tree_cache.invalidate.assert_called_once_with("/abs/path/to/file.py")
+    content_cache.invalidate.assert_called_once_with("/abs/path/to/file.py")
     assert result == {"status": "success", "message": "Cache cleared for file.py in test_project"}
 
 
@@ -224,6 +231,7 @@ def test_configure_cache_enabled(server_context, mock_dependencies):
     # Verify
     config_manager.update_value.assert_called_once_with("cache.enabled", False)
     tree_cache.set_enabled.assert_called_once_with(False)
+    mock_dependencies["content_cache"].set_enabled.assert_called_once_with(False)
     config_manager.to_dict.assert_called_once()
 
 

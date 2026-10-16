@@ -28,6 +28,7 @@ class ServerContext:
         project_registry: Optional[ProjectRegistry] = None,
         language_registry: Optional[LanguageRegistry] = None,
         tree_cache: Optional[TreeCache] = None,
+        content_cache: Optional[Any] = None,
     ):
         """
         Initialize with optional components.
@@ -39,6 +40,7 @@ class ServerContext:
         self.project_registry = project_registry or container.project_registry
         self.language_registry = language_registry or container.language_registry
         self.tree_cache = tree_cache or container.tree_cache
+        self.content_cache = content_cache if content_cache is not None else container.content_cache
 
     def get_config(self) -> ServerConfig:
         """Get the current configuration."""
@@ -71,7 +73,11 @@ class ServerContext:
 
     # Cache management methods
     def clear_cache(self, project: Optional[str] = None, file_path: Optional[str] = None) -> Dict[str, str]:
-        """Clear the parse tree cache."""
+        """Clear cached parses and content-cache state.
+
+        A file drops that file's parse trees and its stat note. Any other call
+        drops every parse tree, every stat note, and the shared result files.
+        """
         if project and file_path:
             # Get file path
             project_obj = self.project_registry.get_project(project)
@@ -79,10 +85,12 @@ class ServerContext:
 
             # Clear cache
             self.tree_cache.invalidate(abs_path)
+            self.content_cache.invalidate(abs_path)
             return {"status": "success", "message": f"Cache cleared for {file_path} in {project}"}
         else:
             # Clear all
             self.tree_cache.invalidate()
+            self.content_cache.invalidate()
             return {"status": "success", "message": "Cache cleared"}
 
     # Configuration management methods
@@ -104,6 +112,7 @@ class ServerContext:
             logger.info(f"Setting cache.enabled to {cache_enabled}")
             self.config_manager.update_value("cache.enabled", cache_enabled)
             self.tree_cache.set_enabled(cache_enabled)
+            self.content_cache.set_enabled(cache_enabled)
 
         if max_file_size_mb is not None:
             logger.info(f"Setting security.max_file_size_mb to {max_file_size_mb}")

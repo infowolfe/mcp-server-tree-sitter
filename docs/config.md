@@ -8,13 +8,14 @@ The MCP Tree-sitter Server can be configured using a YAML file with the followin
 
 ### Cache Settings
 
-Controls the parser tree cache behavior:
+Controls the in-memory parse cache and the shared analysis cache. `max_size_mb` and `ttl_seconds` apply to parse trees kept in the server process. Symbols, dependencies, and complexity results are stored on disk under `directory`, or `$XDG_CACHE_HOME/tree-sitter-mcp` when `directory` is omitted.
 
 ```yaml
 cache:
   enabled: true                # Enable/disable caching (default: true)
-  max_size_mb: 100             # Maximum cache size in MB (default: 100)
-  ttl_seconds: 300             # Cache entry time-to-live in seconds (default: 300)
+  max_size_mb: 100             # Maximum in-memory parse cache in MB (default: 100)
+  ttl_seconds: 300             # In-memory parse cache time-to-live in seconds (default: 300)
+  # directory: null            # Shared analysis cache. Default: $XDG_CACHE_HOME/tree-sitter-mcp
 ```
 
 ### Security Settings
@@ -277,7 +278,7 @@ This precedence model was chosen for several important reasons:
 The server will look for configuration files in the following locations:
 
 1. Path specified by `MCP_TS_CONFIG_PATH` environment variable
-2. Default location: `~/.config/tree-sitter/config.yaml`
+2. Default location: `~/.config/tree-sitter-mcp/config.yaml`
 
 ## Best Practices
 

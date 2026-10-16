@@ -89,8 +89,13 @@ def remove_project(name: str) -> Dict[str, str]:
 
 
 def clear_cache(project: Optional[str] = None, file_path: Optional[str] = None) -> Dict[str, str]:
-    """Clear the parse tree cache."""
+    """Clear cached parses and content-cache state.
+
+    A file drops that file's parse trees and its stat note. Any other call
+    drops every parse tree, every stat note, and the shared result files.
+    """
     tree_cache = get_tree_cache()
+    content_cache = get_container().content_cache
 
     if project and file_path:
         # Get file path
@@ -100,8 +105,10 @@ def clear_cache(project: Optional[str] = None, file_path: Optional[str] = None) 
 
         # Clear cache
         tree_cache.invalidate(abs_path)
+        content_cache.invalidate(abs_path)
         return {"status": "success", "message": f"Cache cleared for {file_path} in {project}"}
     else:
         # Clear all
         tree_cache.invalidate()
+        content_cache.invalidate()
         return {"status": "success", "message": "Cache cleared"}

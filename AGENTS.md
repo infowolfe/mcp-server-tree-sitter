@@ -30,7 +30,7 @@ Or use the Makefile: `make prepare`
 
 - **Source:** `src/mcp_server_tree_sitter/`
 - **DI container:** `di.py` — constructs all dependencies; avoid circular imports with it
-- **Config:** `config.py` — `ConfigurationManager` auto-loads YAML from `MCP_TS_CONFIG_PATH` or `~/.config/tree-sitter/config.yaml`. Precedence: env vars > YAML > defaults
+- **Config:** `config.py` — `ConfigurationManager` auto-loads YAML from `MCP_TS_CONFIG_PATH` or `~/.config/tree-sitter-mcp/config.yaml`. Precedence: env vars > YAML > defaults
 - **Language registry:** `language/registry.py` — maps file extensions to tree-sitter-language-pack identifiers
 - **Templates:** `language/templates/` — per-language query templates (one file per language)
 - **Tools:** `tools/` — MCP tool implementations (analysis, search, ast_operations, file_operations)

@@ -1,6 +1,17 @@
 """Pytest configuration for mcp-server-tree-sitter tests."""
 
+import atexit
+import os
+import shutil
+import tempfile
+
 import pytest
+
+# Keep the suite off the user's real shared cache. Set this before the
+# package is imported so the container picks the directory up.
+_CONTENT_CACHE_DIR = tempfile.mkdtemp(prefix="mcp-ts-content-cache-")
+os.environ["MCP_TS_CACHE_DIR"] = _CONTENT_CACHE_DIR
+atexit.register(shutil.rmtree, _CONTENT_CACHE_DIR, True)
 
 # Import and register the diagnostic plugin
 pytest_plugins = ["mcp_server_tree_sitter.testing.pytest_diagnostic"]

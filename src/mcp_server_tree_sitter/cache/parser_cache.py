@@ -20,15 +20,20 @@ logger = logging.getLogger(__name__)
 class TreeCache:
     """Cache for parsed syntax trees."""
 
-    def __init__(self, max_size_mb: Optional[int] = None, ttl_seconds: Optional[int] = None):
-        """Initialize the tree cache with explicit size and TTL settings."""
+    def __init__(
+        self,
+        max_size_mb: Optional[int] = None,
+        ttl_seconds: Optional[int] = None,
+        enabled: bool = True,
+    ):
+        """Initialize the tree cache with explicit size, TTL, and enabled settings."""
         self.cache: Dict[str, Tuple[Any, bytes, float]] = {}  # (tree, source, timestamp)
         self.lock = threading.RLock()
         self.current_size_bytes = 0
         self.modified_trees: Dict[str, bool] = {}
         self.max_size_mb = max_size_mb or 100
         self.ttl_seconds = ttl_seconds or 300
-        self.enabled = True
+        self.enabled = enabled
 
     def _get_cache_key(self, file_path: Path, language: str) -> str:
         """Generate cache key from file path and language."""

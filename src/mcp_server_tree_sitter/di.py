@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 # Import logging from bootstrap package
 from .bootstrap import get_logger
+from .cache.content_cache import ContentCache
 from .cache.parser_cache import TreeCache
 from .config import ConfigurationManager, ServerConfig
 from .language.registry import LanguageRegistry
@@ -31,8 +32,11 @@ class DependencyContainer:
             prefer_installed_grammars=self._config.language.prefer_installed_grammars
         )
         self.tree_cache = TreeCache(
-            max_size_mb=self._config.cache.max_size_mb, ttl_seconds=self._config.cache.ttl_seconds
+            max_size_mb=self._config.cache.max_size_mb,
+            ttl_seconds=self._config.cache.ttl_seconds,
+            enabled=self._config.cache.enabled,
         )
+        self.content_cache = ContentCache(enabled=self._config.cache.enabled)
 
         # Pre-load preferred languages after all dependencies are created
         # This avoids circular import issues during LanguageRegistry initialization

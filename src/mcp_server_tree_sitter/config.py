@@ -24,6 +24,9 @@ from .bootstrap import get_logger, update_log_levels
 
 logger = get_logger(__name__)
 
+# Directory under the XDG config home and the XDG cache home.
+APP_DIR_NAME = "tree-sitter-mcp"
+
 
 class CacheConfig(BaseModel):
     """Configuration for caching behavior."""
@@ -31,6 +34,8 @@ class CacheConfig(BaseModel):
     enabled: bool = True
     max_size_mb: int = 100
     ttl_seconds: int = 300  # Time-to-live for cached items
+    # Shared result directory. None uses MCP_TS_CACHE_DIR, then the XDG cache home.
+    directory: Optional[str] = None
 
 
 class SecurityConfig(BaseModel):
@@ -145,6 +150,10 @@ def update_config_from_env(config: ServerConfig) -> None:
                 setting = key.lower()
                 logger.debug(f"Top-level setting: {setting}")
 
+        # MCP_TS_CACHE_DIR selects the shared cache directory.
+        if section == "cache" and setting == "dir":
+            setting = "directory"
+
         # Apply the setting to the configuration
         if section is None:
             # Top-level setting
@@ -209,7 +218,7 @@ class ConfigurationManager:
         """Initialize with optional initial configuration.
 
         Auto-discovers and loads YAML config from MCP_TS_CONFIG_PATH env var
-        or the default platform path (~/.config/tree-sitter/config.yaml).
+        or the default platform path (~/.config/tree-sitter-mcp/config.yaml).
         Environment variables are applied last to ensure highest precedence.
         """
         self._config = initial_config or ServerConfig()
@@ -331,6 +340,7 @@ class ConfigurationManager:
                 container.tree_cache.set_enabled(self._config.cache.enabled)
                 container.tree_cache.set_max_size_mb(self._config.cache.max_size_mb)
                 container.tree_cache.set_ttl_seconds(self._config.cache.ttl_seconds)
+                container.content_cache.set_enabled(self._config.cache.enabled)
 
                 # Update logging configuration using centralized bootstrap module
                 update_log_levels(self._config.log_level)
@@ -399,6 +409,7 @@ class ConfigurationManager:
                 "enabled": self._config.cache.enabled,
                 "max_size_mb": self._config.cache.max_size_mb,
                 "ttl_seconds": self._config.cache.ttl_seconds,
+                "directory": self._config.cache.directory,
             },
             "security": {
                 "max_file_size_mb": self._config.security.max_file_size_mb,
@@ -425,9 +436,9 @@ def get_default_config_path() -> Optional[Path]:
     import platform
 
     if platform.system() == "Windows":
-        config_dir = Path(os.environ.get("USERPROFILE", "")) / ".config" / "tree-sitter"
+        config_dir = Path(os.environ.get("USERPROFILE", "")) / ".config" / APP_DIR_NAME
     else:
-        config_dir = Path(os.environ.get("HOME", "")) / ".config" / "tree-sitter"
+        config_dir = Path(os.environ.get("HOME", "")) / ".config" / APP_DIR_NAME
 
     config_path = config_dir / "config.yaml"
 
@@ -457,6 +468,7 @@ def update_config_from_new(original: ServerConfig, new: ServerConfig) -> None:
         original.cache.enabled = new.cache.enabled
         original.cache.max_size_mb = new.cache.max_size_mb
         original.cache.ttl_seconds = new.cache.ttl_seconds
+        original.cache.directory = new.cache.directory
 
         # Security settings
         original.security.max_file_size_mb = new.security.max_file_size_mb

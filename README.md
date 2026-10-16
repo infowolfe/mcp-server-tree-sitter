@@ -134,10 +134,11 @@ This method uses `uvx` to run the installed PyPI package directly, which is the 
 
 The MCP Tree-sitter Server maintains state between invocations. This means:
 - Projects stay registered until explicitly removed or the server is restarted
-- Parse trees are cached according to configuration settings
+- Parse trees are cached in memory according to configuration settings
+- Symbols, dependencies, and complexity results are stored in a shared content-addressed cache. The default directory is `$XDG_CACHE_HOME/tree-sitter-mcp`, or `~/.cache/tree-sitter-mcp`
 - Language information is retained throughout the server's lifetime
 
-This persistence is maintained in-memory during the server's lifetime using singleton patterns for key components.
+Project registration and parse trees stay in memory for the server process. The shared analysis cache is on disk and is reused by later processes.
 
 ### Running as a standalone server
 
@@ -315,8 +316,9 @@ Create a YAML configuration file:
 ```yaml
 cache:
   enabled: true                # Enable/disable caching (default: true)
-  max_size_mb: 100             # Maximum cache size in MB (default: 100)
-  ttl_seconds: 300             # Cache entry time-to-live in seconds (default: 300)
+  max_size_mb: 100             # Maximum in-memory parse cache in MB (default: 100)
+  ttl_seconds: 300             # In-memory parse cache time-to-live in seconds (default: 300)
+  # directory: null            # Shared analysis cache. Default: $XDG_CACHE_HOME/tree-sitter-mcp
 
 security:
   max_file_size_mb: 5          # Maximum file size to process in MB (default: 5)
@@ -398,7 +400,7 @@ Configuration values are applied in this order of precedence:
 The server will look for configuration in:
 1. Path specified in `configure()` call
 2. Path specified by `MCP_TS_CONFIG_PATH` environment variable
-3. Default location: `~/.config/tree-sitter/config.yaml`
+3. Default location: `~/.config/tree-sitter-mcp/config.yaml`
 
 ## For Developers
 

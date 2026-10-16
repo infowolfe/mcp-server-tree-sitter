@@ -73,6 +73,7 @@ def configure_with_context(
         logger.info(f"Setting cache.enabled to {cache_enabled}")
         config_manager.update_value("cache.enabled", cache_enabled)
         tree_cache.set_enabled(cache_enabled)
+        container.content_cache.set_enabled(cache_enabled)
 
     if max_file_size_mb is not None:
         logger.info(f"Setting security.max_file_size_mb to {max_file_size_mb}")
@@ -146,6 +147,7 @@ def main() -> None:
         logger.info("Disabling parse tree cache as requested")
         container.config_manager.update_value("cache.enabled", False)
         container.tree_cache.set_enabled(False)
+        container.content_cache.set_enabled(False)
 
     # Register capabilities and tools
     from .capabilities import register_capabilities
@@ -160,6 +162,7 @@ def main() -> None:
     # Update tree cache settings from config
     container.tree_cache.set_max_size_mb(config.cache.max_size_mb)
     container.tree_cache.set_enabled(config.cache.enabled)
+    container.content_cache.set_enabled(config.cache.enabled)
 
     # Run the server
     logger.info("Starting MCP Tree-sitter Server")
