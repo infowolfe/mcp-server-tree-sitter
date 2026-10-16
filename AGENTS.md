@@ -68,4 +68,4 @@ tree-sitter >= 0.24 removed `Query.captures()`. Always use the `query_captures(q
 1. Bump version in `pyproject.toml`
 2. Update README if features/languages changed
 3. Merge to main, confirm CI green
-4. Create GitHub release with tag `vX.Y.Z` — this triggers the release workflow which publishes to PyPI
+4. Push tag `vX.Y.Z`. That runs the release workflow, which publishes to PyPI
