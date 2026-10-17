@@ -2,9 +2,6 @@
 
 import subprocess
 import sys
-from unittest.mock import patch
-
-import pytest
 
 from mcp_server_tree_sitter.server import main
 
@@ -26,6 +23,8 @@ def test_help_flag_does_not_start_server():
     assert "MCP Tree-sitter Server" in result.stdout
     assert "--help" in result.stdout
     assert "--config" in result.stdout
+    assert "--server" in result.stdout
+    assert "--socket" in result.stdout
 
     # Server should not have started - no startup messages
     assert "Starting MCP Tree-sitter Server" not in result.stdout
@@ -51,40 +50,29 @@ def test_version_flag_exits_without_starting_server():
 
 
 def test_direct_script_help_flag():
-    """Test that mcp-server-tree-sitter --help works correctly when called as a script."""
-    # This uses a mock to avoid actually calling the script binary
-    with (
-        patch("sys.argv", ["mcp-server-tree-sitter", "--help"]),
-        patch("argparse.ArgumentParser.parse_args") as mock_parse_args,
-        # We don't actually need to use mock_exit in the test,
-        # but we still want to patch sys.exit to prevent actual exits
-        patch("sys.exit"),
-    ):
-        # Mock the ArgumentParser.parse_args to simulate --help behavior
-        # When --help is used, argparse exits with code 0 after printing help
-        mock_parse_args.side_effect = SystemExit(0)
+    """The console-script entry point prints help and does not start the server."""
+    from click.testing import CliRunner
 
-        # This should catch the SystemExit raised by parse_args
-        with pytest.raises(SystemExit) as excinfo:
-            main()
+    result = CliRunner().invoke(main, ["--help"])
 
-        # Verify it's exiting with code 0 (success)
-        assert excinfo.value.code == 0
+    assert result.exit_code == 0
+    assert "MCP Tree-sitter Server" in result.output
+    assert "--config" in result.output
+    assert "--mount-path" in result.output
+    assert "Starting MCP Tree-sitter Server" not in result.output
 
 
 def test_entry_point_implementation():
-    """Verify that the entry point properly uses argparse for argument handling."""
-    import inspect
+    """The console script is a Click command and exposes the service flags."""
+    import click
 
-    from mcp_server_tree_sitter.server import main
-
-    # Get the source code of the main function
-    source = inspect.getsource(main)
-
-    # Check that it's using argparse
-    assert "argparse.ArgumentParser" in source
-    assert "parse_args" in source
-
-    # Check for proper handling of key flags
-    assert "--help" in source or "automatically" in source  # argparse adds --help automatically
-    assert "--version" in source
+    assert isinstance(main, click.Command)
+    opts = {opt for param in main.params for opt in param.opts}
+    assert "--version" in opts
+    assert "--config" in opts
+    assert "--transport" in opts
+    assert "--host" in opts
+    assert "--port" in opts
+    assert "--mount-path" in opts
+    assert "--server" in opts
+    assert "--socket" in opts

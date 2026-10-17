@@ -16,7 +16,7 @@ def isolated_caches(monkeypatch):
     monkeypatch.setattr(installed, "_discovered", None)
     monkeypatch.setattr(installed, "_load_cache", {})
     monkeypatch.setattr(installed, "_scm_cache", {})
-    monkeypatch.setattr(installed, "_distributions", lambda: [])
+    monkeypatch.setattr(installed, "_distributions", list)
 
 
 def discover(monkeypatch, *names):
@@ -123,17 +123,38 @@ def test_import_failure_cached_and_pack_miss_raises(monkeypatch):
 
 def test_config_round_trip(monkeypatch, tmp_path):
     monkeypatch.setenv("MCP_TS_CONFIG_PATH", str(tmp_path / "missing.yaml"))
-    monkeypatch.delenv("MCP_TS_LANGUAGE_PREFER_INSTALLED_GRAMMARS", raising=False)
+    for name in (
+        "MCP_TS_LANGUAGE_PREFER_INSTALLED_GRAMMARS",
+        "MCP_TS_LANGUAGE_PREFERRED_LANGUAGES",
+        "MCP_TS_LANGUAGE__PREFERRED_LANGUAGES",
+        "MCP_TS_SECURITY_ALLOWED_EXTENSIONS",
+        "MCP_TS_SECURITY__ALLOWED_EXTENSIONS",
+        "MCP_TS_MAX_RESULTS_DEFAULT",
+    ):
+        monkeypatch.delenv(name, raising=False)
     original = ServerConfig()
     new = ServerConfig()
     new.language.prefer_installed_grammars = True
     new.language.preferred_languages = ["python"]
+    new.security.allowed_extensions = []
+    new.max_results_default = 7
     update_config_from_new(original, new)
+    new.security.excluded_dirs.append("secret")
+    new.language.preferred_languages.append("go")
     assert original.language.prefer_installed_grammars is True
+    assert original.language.preferred_languages == ["python"]
+    assert original.security.allowed_extensions == []
+    assert "secret" not in original.security.excluded_dirs
+    assert original.max_results_default == 7
     serialized = ConfigurationManager(original).to_dict()
     assert serialized["language"]["prefer_installed_grammars"] is True
-    assert "preferred_languages" not in serialized["language"]
-    assert ServerConfig(**serialized).language.prefer_installed_grammars is True
+    assert serialized["language"]["preferred_languages"] == ["python"]
+    assert serialized["security"]["allowed_extensions"] == []
+    assert serialized["max_results_default"] == 7
+    restored = ServerConfig(**serialized)
+    assert restored.language.prefer_installed_grammars is True
+    assert restored.language.preferred_languages == ["python"]
+    assert restored.max_results_default == 7
 
 
 def test_construction_does_not_call_container_or_discovery(monkeypatch):

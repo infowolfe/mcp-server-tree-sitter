@@ -26,6 +26,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "click>=8.1",
+    "uvicorn>=0.30",
     "mcp[cli]>=1.23.0,<2",
     "tree-sitter>=0.26,<0.27",
     "tree-sitter-language-pack>=1.21.0",
@@ -43,7 +45,8 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.0.0",
-    "ruff>=0.0.262",
+    "pre-commit>=4.6.0,<4.7",
+    "ruff>=0.17.1",
     "mypy>=1.2.0",
 ]
 # Language support (now included via tree-sitter-language-pack)
@@ -95,4 +98,84 @@ line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "B"]
+# Every stable rule. Ignores are formatter conflicts, incompatible docstring
+# pairs, or a constraint this package is keeping on purpose. The pre-commit
+# rev in .pre-commit-config.yaml must match the locked ruff version.
+select = ["ALL"]
+ignore = [
+    # The formatter owns layout. These rules fight it.
+    "COM812",
+    "COM819",
+    "D206",
+    "D300",
+    "E111",
+    "E114",
+    "E117",
+    "ISC001",
+    "Q000",
+    "Q001",
+    "Q002",
+    "Q003",
+    "W191",
+    # D211 (no blank line before a class) is the pair we keep.
+    "D203",
+    # D212 (summary on the first line) is the pair we keep.
+    "D213",
+    # The license is LICENSE. Files do not carry a copyright banner.
+    "CPY001",
+    # Tree-sitter nodes, MCP payloads, and the registries are dynamic.
+    "ANN401",
+    # Imports stay inside functions where the DI container would cycle,
+    # and where a helper is only needed on one path.
+    "PLC0415",
+    # The tree already mixes relative and absolute imports.
+    "TID252",
+    # Log lines interpolate at the call. They are not on a hot path.
+    "G004",
+    # Positional booleans are part of the current function signatures.
+    "FBT",
+    # os.path and open() are the existing path style.
+    "PTH",
+    # Tool boundaries still catch Exception. Narrowing them is separate work.
+    "BLE001",
+    # The parsers and the config loader are already past these size limits.
+    "C901",
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR0917",
+    # try/else and "put the message in a variable" do not change the errors.
+    "EM101",
+    "EM102",
+    "TRY003",
+    "TRY300",
+    "TRY301",
+    # Public methods that never grew a docstring.
+    "D102",
+    "D107",
+    # Grammar counts and ports are literal on purpose.
+    "PLR2004",
+    # A try inside a loop is how a scan skips one bad file.
+    "PERF203",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, use fixtures, and print diagnostics. mypy does not type them.
+# LOG015: several tests log through the root logger on purpose.
+# S104 and S108: fixtures name 0.0.0.0 and /tmp. They do not bind a socket.
+"tests/**/*.py" = [
+    "ANN",
+    "ARG",
+    "D",
+    "LOG015",
+    "PLR2004",
+    "S101",
+    "S104",
+    "S108",
+    "SLF001",
+    "T201",
+]

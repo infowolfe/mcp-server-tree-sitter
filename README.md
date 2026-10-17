@@ -402,6 +402,55 @@ The server will look for configuration in:
 2. Path specified by `MCP_TS_CONFIG_PATH` environment variable
 3. Default location: `~/.config/tree-sitter-mcp/config.yaml`
 
+## Running as a service
+
+The console script can stay up and serve more than one client. Create `~/.config/tree-sitter-mcp/config.yaml` with a `service` section:
+
+```yaml
+service:
+  server: true
+  transport: streamable-http  # stdio, sse, or streamable-http
+  host: 127.0.0.1
+  port: 8765
+  mount_path: /mcp
+  # socket: /run/user/1000/mcp-server-tree-sitter.sock
+```
+
+The process listens only when `server` is true or you pass `--server`. Otherwise it uses stdio, even if `transport` names an HTTP protocol. `server: true` with `transport: stdio` listens as `streamable-http`. `streamable-http` serves `mount_path`. `sse` listens on `/sse` and `/messages/` and does not use `mount_path`.
+
+Set `socket` to a filesystem path, or pass `--socket`, to listen on a Unix socket instead of `host` and `port`. A leftover socket file is removed. A path another process is still accepting on is refused. This server also holds `{path}.lock` while it is listening, so a second start refuses that path instead of replacing it. Uvicorn creates that socket as mode 0666, so the directory should be private to the user. A host other than `127.0.0.1`, `localhost`, or `::1`, and any Unix socket, does not keep the loopback Host allowlist.
+
+`MCP_TS_SERVICE_SERVER`, `MCP_TS_SERVICE_SOCKET`, `MCP_TS_SERVICE_TRANSPORT`, `MCP_TS_SERVICE_HOST`, `MCP_TS_SERVICE_PORT`, and `MCP_TS_SERVICE_MOUNT_PATH` override the file. Passing `--server`, `--socket`, `--transport`, `--host`, `--port`, or `--mount-path` also overrides the file. An environment variable still wins over that flag. `--no-server` is how a flag turns a file's `server: true` back off.
+
+If that file is missing, or it does not set `server: true`, the process stays on stdio. The templates below pass `--config` and do not pass `--server`.
+
+`pip install` does not ship the `contrib` directory. Copy the templates from this repository. Both assume the console script is `~/.local/bin/mcp-server-tree-sitter`. Change that path when the script lives somewhere else.
+
+### systemd
+
+`contrib/systemd/mcp-server-tree-sitter.service` is a user unit. systemd does not expand `~`, so the unit uses `%h`.
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp contrib/systemd/mcp-server-tree-sitter.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now mcp-server-tree-sitter.service
+```
+
+Logs are available with `journalctl --user -u mcp-server-tree-sitter`.
+
+### launchd
+
+`contrib/launchd/mcp-server-tree-sitter.plist` is a user agent. launchd does not expand `~` in `ProgramArguments`, so the plist runs `/bin/sh` and lets `$HOME` expand. It restarts only after a failed exit. A stdio process exits when stdin closes, and launchd provides no stdin, so an unconditional restart would loop.
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+cp contrib/launchd/mcp-server-tree-sitter.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/mcp-server-tree-sitter.plist
+```
+
+Clients name a source tree by registering its directory, then pass that project name on later tool calls. Every connection to the process shares that registry.
+
 ## For Developers
 
 ### Diagnostic Capabilities

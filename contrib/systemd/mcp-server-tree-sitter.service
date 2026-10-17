@@ -1,0 +1,19 @@
+# User unit. systemd does not expand ~, so paths use %h (the user's home).
+# Create ~/.config/tree-sitter-mcp/config.yaml before enabling this unit.
+# The file must set service.server: true. A missing file, or server: false,
+# leaves the process on stdio, which does not listen.
+# Copy to ~/.config/systemd/user/ and run:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now mcp-server-tree-sitter.service
+
+[Unit]
+Description=MCP Tree-sitter Server
+Documentation=https://github.com/infowolfe/mcp-server-tree-sitter
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/mcp-server-tree-sitter --config %h/.config/tree-sitter-mcp/config.yaml
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

@@ -14,7 +14,7 @@ The precedence order for configuration is:
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import yaml
 from pydantic import BaseModel, Field
@@ -58,12 +58,30 @@ class LanguageConfig(BaseModel):
     prefer_installed_grammars: bool = False
 
 
+class ServiceConfig(BaseModel):
+    """How this process is served.
+
+    ``server`` is the persistent listen switch. Without it the process uses
+    stdio. ``socket`` is a Unix socket path and replaces host and port.
+    ``mount_path`` is the streamable HTTP route. SSE keeps the SDK listen
+    paths.
+    """
+
+    server: bool = False
+    transport: Literal["stdio", "sse", "streamable-http"] = "stdio"
+    host: str = "127.0.0.1"
+    port: int = 8765
+    mount_path: str = "/mcp"
+    socket: Optional[str] = None
+
+
 class ServerConfig(BaseModel):
     """Main server configuration."""
 
     cache: CacheConfig = Field(default_factory=CacheConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     language: LanguageConfig = Field(default_factory=LanguageConfig)
+    service: ServiceConfig = Field(default_factory=ServiceConfig)
     log_level: str = "INFO"
     max_results_default: int = 100
 
@@ -404,24 +422,7 @@ class ConfigurationManager:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to a dictionary."""
-        return {
-            "cache": {
-                "enabled": self._config.cache.enabled,
-                "max_size_mb": self._config.cache.max_size_mb,
-                "ttl_seconds": self._config.cache.ttl_seconds,
-                "directory": self._config.cache.directory,
-            },
-            "security": {
-                "max_file_size_mb": self._config.security.max_file_size_mb,
-                "excluded_dirs": self._config.security.excluded_dirs,
-            },
-            "language": {
-                "auto_install": self._config.language.auto_install,
-                "default_max_depth": self._config.language.default_max_depth,
-                "prefer_installed_grammars": self._config.language.prefer_installed_grammars,
-            },
-            "log_level": self._config.log_level,
-        }
+        return self._config.model_dump()
 
 
 # We've removed the global CONFIG instance to eliminate global state and
@@ -449,60 +450,13 @@ def get_default_config_path() -> Optional[Path]:
 
 
 def update_config_from_new(original: ServerConfig, new: ServerConfig) -> None:
-    """Update the original config with values from the new config."""
-    logger = logging.getLogger(__name__)
-
-    # Log before values
-    logger.info(
-        f"[update_config_from_new] Before: cache.max_size_mb={original.cache.max_size_mb}, "
-        f"security.max_file_size_mb={original.security.max_file_size_mb}"
-    )
-    logger.info(
-        f"[update_config_from_new] New values: cache.max_size_mb={new.cache.max_size_mb}, "
-        f"security.max_file_size_mb={new.security.max_file_size_mb}"
-    )
-
-    # Update all attributes, copying collections to avoid reference issues
-    try:
-        # Cache settings
-        original.cache.enabled = new.cache.enabled
-        original.cache.max_size_mb = new.cache.max_size_mb
-        original.cache.ttl_seconds = new.cache.ttl_seconds
-        original.cache.directory = new.cache.directory
-
-        # Security settings
-        original.security.max_file_size_mb = new.security.max_file_size_mb
-        original.security.excluded_dirs = new.security.excluded_dirs.copy()
-        if new.security.allowed_extensions:
-            original.security.allowed_extensions = new.security.allowed_extensions.copy()
+    """Copy ``new`` onto ``original`` without sharing nested models or their lists."""
+    for name in type(original).model_fields:
+        value = getattr(new, name)
+        if isinstance(value, BaseModel):
+            setattr(original, name, value.model_copy(deep=True))
         else:
-            original.security.allowed_extensions = None
-
-        # Language settings
-        original.language.auto_install = new.language.auto_install
-        original.language.default_max_depth = new.language.default_max_depth
-        original.language.preferred_languages = new.language.preferred_languages.copy()
-        original.language.prefer_installed_grammars = new.language.prefer_installed_grammars
-
-        # Other settings
-        original.log_level = new.log_level
-        original.max_results_default = new.max_results_default
-
-        # Log after values to confirm update succeeded
-        logger.info(
-            f"[update_config_from_new] After: cache.max_size_mb={original.cache.max_size_mb}, "
-            f"security.max_file_size_mb={original.security.max_file_size_mb}"
-        )
-    except Exception as e:
-        logger.error(f"Error updating config: {e}")
-        # Ensure at least some values get updated
-        try:
-            original.cache.max_size_mb = new.cache.max_size_mb
-            original.security.max_file_size_mb = new.security.max_file_size_mb
-            original.language.default_max_depth = new.language.default_max_depth
-            logger.info("Fallback update succeeded with basic values")
-        except Exception as e2:
-            logger.error(f"Fallback update also failed: {e2}")
+            setattr(original, name, value)
 
 
 def load_config(config_path: Optional[str] = None) -> ServerConfig:

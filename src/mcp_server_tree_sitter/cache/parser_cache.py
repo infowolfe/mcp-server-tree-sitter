@@ -3,13 +3,11 @@
 import logging
 import threading
 import time
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 # Import global_context at runtime to avoid circular imports
 from ..utils.tree_sitter_types import (
-    Parser,
     Tree,
     ensure_tree,
 )
@@ -130,9 +128,7 @@ class TreeCache:
                         del self.modified_trees[cache_key]
                     return None
 
-                # Cast to the correct type for type checking
-                safe_tree = ensure_tree(tree)
-                return safe_tree, source
+                return _copy_tree(tree), source
 
         return None
 
@@ -182,8 +178,8 @@ class TreeCache:
                 if self.current_size_bytes + source_size > max_size_bytes:
                     self._evict_entries(source_size)
 
-            # Store the new entry
-            self.cache[cache_key] = (tree, source, time.time())
+            # Store a copy so the caller can walk the tree it just parsed.
+            self.cache[cache_key] = (_copy_tree(tree), source, time.time())
             self.current_size_bytes += source_size
             logger.debug(
                 f"Added entry to cache: {file_path}, size: {source_size / 1024:.1f}KB, "
@@ -249,7 +245,7 @@ class TreeCache:
                 self.current_size_bytes -= len(old_source)
                 self.current_size_bytes += len(source)
                 # Update cache entry
-                self.cache[cache_key] = (tree, source, time.time())
+                self.cache[cache_key] = (_copy_tree(tree), source, time.time())
                 # Reset modified flag
                 self.modified_trees[cache_key] = False
             else:
@@ -363,9 +359,10 @@ def get_tree_cache() -> TreeCache:
     return tree_cache
 
 
-@lru_cache(maxsize=32)
-def get_cached_parser(language: Any) -> Parser:
-    """Get a cached parser for a language."""
-    from ..utils.tree_sitter_helpers import create_parser
+def _copy_tree(tree: Tree) -> Tree:
+    """Return a tree this cache may store or hand out.
 
-    return create_parser(language)
+    tree-sitter Trees are not safe for two cursors at once. ``Tree.copy`` is
+    the split the library provides. The caller keeps its own tree.
+    """
+    return ensure_tree(tree).copy()

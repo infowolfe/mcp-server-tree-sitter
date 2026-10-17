@@ -19,6 +19,16 @@ mcp-server-tree-sitter [options]
 | `--config CONFIG` | Path to configuration file |
 | `--debug` | Enable debug logging |
 | `--disable-cache` | Disable parse tree caching |
+| `--transport TRANSPORT` | `stdio`, `sse`, or `streamable-http`. Overrides the config file only when passed |
+| `--host HOST` | HTTP listen address. Overrides the config file only when passed |
+| `--port PORT` | HTTP listen port. Overrides the config file only when passed |
+| `--mount-path PATH` | Streamable HTTP route, such as `/mcp`. Overrides the config file only when passed |
+| `--server` / `--no-server` | Listen persistently, or stay on stdio. Overrides the config file only when passed |
+| `--socket PATH` | Unix socket path. Replaces host and port. Overrides the config file only when passed |
+
+The same service values load from the `service` section of `~/.config/tree-sitter-mcp/config.yaml`. Defaults are `server: false`, transport `stdio`, host `127.0.0.1`, port `8765`, mount path `/mcp`, and no socket. `MCP_TS_SERVICE_SERVER`, `MCP_TS_SERVICE_SOCKET`, `MCP_TS_SERVICE_TRANSPORT`, `MCP_TS_SERVICE_HOST`, `MCP_TS_SERVICE_PORT`, and `MCP_TS_SERVICE_MOUNT_PATH` override the file. A CLI flag overrides the file only when you pass it, and an environment variable still wins over that flag.
+
+The process listens only when `server` is true or `--server` is passed. `server: true` with transport `stdio` listens as `streamable-http`. `streamable-http` serves `mount_path`. `sse` listens on the SDK paths `/sse` and `/messages/`. `--socket` listens on that Unix socket instead of host and port. A leftover socket file is removed. A path another process is still accepting on is refused. A second start of this server also refuses the path while `{path}.lock` is held.
 
 ### Examples
 
