@@ -7,10 +7,11 @@ and both successes and failures are cached.
 
 import importlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, distributions
+from importlib.metadata import PackageMetadata, PackageNotFoundError, distributions
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,15 @@ _FUNCTION_ALIASES = {
 }
 _FAILED = object()
 
-_discovered: Optional[Dict[str, "InstalledGrammar"]] = None
-_load_cache: Dict[str, Any] = {}
-_scm_cache: Dict[str, Dict[str, str]] = {}
+
+class _Discovery:
+    """Grammars found by the last metadata scan. None until the first scan."""
+
+    found: dict[str, "InstalledGrammar"] | None = None
+
+
+_load_cache: dict[str, Any] = {}
+_scm_cache: dict[str, dict[str, str]] = {}
 
 # Bound names so tests can replace them without patching importlib itself.
 _distributions = distributions
@@ -41,11 +48,11 @@ class InstalledGrammar:
 
     language_id: str
     distribution_name: str
-    display_name: Optional[str]
-    module_names: Tuple[str, ...]
+    display_name: str | None
+    module_names: tuple[str, ...]
 
 
-def language_id_for_distribution(name: str) -> Optional[str]:
+def language_id_for_distribution(name: str) -> str | None:
     """Map a distribution name to a language id, or None when it is not a grammar."""
     normalized = name.strip().lower().replace("_", "-")
     if normalized in _SKIP or not normalized.startswith("tree-sitter-"):
@@ -59,14 +66,14 @@ def language_id_for_distribution(name: str) -> Optional[str]:
     return _ID_ALIASES.get(underscored, underscored)
 
 
-def module_names_for(language_id: str) -> Tuple[str, ...]:
+def module_names_for(language_id: str) -> tuple[str, ...]:
     """Import names to try, aliases first."""
     names = list(_MODULE_ALIASES.get(language_id, ()))
     names.append(f"tree_sitter_{language_id}")
     return tuple(dict.fromkeys(names))
 
 
-def _display_name(summary: str) -> Optional[str]:
+def _display_name(summary: str) -> str | None:
     text = summary.strip()
     if not text:
         return None
@@ -77,31 +84,37 @@ def _display_name(summary: str) -> Optional[str]:
     return text
 
 
-def discover_installed() -> Dict[str, InstalledGrammar]:
+def _metadata_field(metadata: PackageMetadata, key: str) -> str:
+    """Return one metadata field, or an empty string when it is absent."""
+    if key not in metadata:
+        return ""
+    return metadata[key]
+
+
+def discover_installed() -> dict[str, InstalledGrammar]:
     """Scan installed distributions once. Does not import grammar modules."""
-    global _discovered
-    if _discovered is not None:
-        return _discovered
-    found: Dict[str, InstalledGrammar] = {}
+    if _Discovery.found is not None:
+        return _Discovery.found
+    found: dict[str, InstalledGrammar] = {}
     try:
         packages = _distributions()
     except Exception as exc:
         logger.warning("Failed to discover installed tree-sitter packages: %s", exc)
-        _discovered = {}
-        return _discovered
+        _Discovery.found = {}
+        return _Discovery.found
     for dist in packages:
         raw_name = dist.metadata["Name"] or ""
         language_id = language_id_for_distribution(raw_name)
         if language_id is None or language_id in found:
             continue
-        summary = dist.metadata["Summary"] if "Summary" in dist.metadata else ""
+        summary = _metadata_field(dist.metadata, "Summary")
         found[language_id] = InstalledGrammar(
             language_id=language_id,
             distribution_name=raw_name,
             display_name=_display_name(summary),
             module_names=module_names_for(language_id),
         )
-    _discovered = found
+    _Discovery.found = found
     return found
 
 
@@ -111,7 +124,7 @@ def _default_language_ctor(capsule: Any) -> Any:
     return Language(capsule)
 
 
-def _language_callable(module: Any, language_id: str) -> Optional[Callable[[], Any]]:
+def _language_callable(module: Any, language_id: str) -> Callable[[], Any] | None:
     if hasattr(module, "language"):
         return module.language  # type: ignore[no-any-return]
     specific = getattr(module, f"language_{language_id}", None)
@@ -124,7 +137,7 @@ def _language_callable(module: Any, language_id: str) -> Optional[Callable[[], A
     return None
 
 
-def load_installed_language(language_id: str, language_ctor: Optional[Callable[[Any], Any]] = None) -> Any:
+def load_installed_language(language_id: str, language_ctor: Callable[[Any], Any] | None = None) -> Any:
     """Import one grammar and build a Language. Failures stay cached."""
     if language_id in _load_cache:
         cached = _load_cache[language_id]
@@ -134,7 +147,7 @@ def load_installed_language(language_id: str, language_ctor: Optional[Callable[[
     ctor = language_ctor or _default_language_ctor
     try:
         module = None
-        last_error: Optional[BaseException] = None
+        last_error: BaseException | None = None
         for module_name in module_names_for(language_id):
             try:
                 module = _import_module(module_name)
@@ -154,7 +167,7 @@ def load_installed_language(language_id: str, language_ctor: Optional[Callable[[
     return language
 
 
-def _queries_dir(module: Any) -> Optional[Path]:
+def _queries_dir(module: Any) -> Path | None:
     module_file = getattr(module, "__file__", None)
     if not module_file:
         return None
@@ -169,11 +182,11 @@ def _queries_dir(module: Any) -> Optional[Path]:
     return None
 
 
-def scm_templates_for(language_id: str) -> Dict[str, str]:
+def scm_templates_for(language_id: str) -> dict[str, str]:
     """Load .scm queries for one language. A miss is cached and not retried."""
     if language_id in _scm_cache:
         return _scm_cache[language_id]
-    templates: Dict[str, str] = {}
+    templates: dict[str, str] = {}
     try:
         grammar = discover_installed().get(language_id)
         if grammar is None:

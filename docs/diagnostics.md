@@ -43,25 +43,26 @@ make test-all
 import pytest
 from mcp_server_tree_sitter.testing import diagnostic
 
+
 @pytest.mark.diagnostic  # Mark the test as producing diagnostic data
 def test_some_feature(diagnostic):  # Use the diagnostic fixture
     # Add details to diagnostic data
     diagnostic.add_detail("key", "value")
-    
+
     try:
         # Test your functionality
         result = some_functionality()
-        
+
         # Use standard assertions - the test will fail if they don't pass
         assert result is not None, "Result should not be None"
-        
+
     except Exception as e:
         # Record the error in diagnostic data
         diagnostic.add_error("ErrorType", str(e))
-        
+
         # Add any artifacts you want to save
         diagnostic.add_artifact("error_artifact", {"error": str(e)})
-        
+
         # Re-raise to fail the test
         raise
 ```

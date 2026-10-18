@@ -27,21 +27,18 @@ def get_log_level_from_env() -> int:
 # Example of correct implementation
 def configure_root_logger() -> None:
     log_level = get_log_level_from_env()
-    
+
     # Configure the root logger with proper format and level
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    
+    logging.basicConfig(level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
     # Ensure the root logger for our package is also set correctly
     pkg_logger = logging.getLogger("mcp_server_tree_sitter")
     pkg_logger.setLevel(log_level)
-    
+
     # Ensure all handlers have the correct level
     for handler in logging.root.handlers:
         handler.setLevel(log_level)
-    
+
     # Ensure propagation is preserved
     pkg_logger.propagate = True
 ```
@@ -57,21 +54,22 @@ def configure_root_logger() -> None:
 # INCORRECT approach - setting levels for all loggers
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
-    
+
     # Setting levels for all package loggers disrupts hierarchy
     if name.startswith("mcp_server_tree_sitter"):
         logger.setLevel(get_log_level_from_env())
-    
+
     return logger
+
 
 # CORRECT approach - respecting logger hierarchy
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
-    
+
     # Only set the level explicitly for the root package logger
     if name == "mcp_server_tree_sitter":
         logger.setLevel(get_log_level_from_env())
-    
+
     return logger
 ```
 
@@ -104,25 +102,25 @@ def update_handler_levels(logger: logging.Logger, level: int) -> None:
 # Example of correct level updating
 def update_log_levels(level_name: str) -> None:
     level_value = LOG_LEVEL_MAP.get(level_name.upper(), logging.INFO)
-    
+
     # Update root package logger
     pkg_logger = logging.getLogger("mcp_server_tree_sitter")
     pkg_logger.setLevel(level_value)
-    
+
     # Update all handlers on the package logger
     for handler in pkg_logger.handlers:
         handler.setLevel(level_value)
-    
+
     # Update existing loggers in our package
     for name in logging.root.manager.loggerDict:
         if name == "mcp_server_tree_sitter" or name.startswith("mcp_server_tree_sitter."):
             logger = logging.getLogger(name)
             logger.setLevel(level_value)
-            
+
             # Update all handlers for this logger
             for handler in logger.handlers:
                 handler.setLevel(level_value)
-            
+
             # Preserve propagation
             logger.propagate = True
 ```
@@ -145,10 +143,12 @@ def update_log_levels(level_name: str) -> None:
 # Example of robust logger acquisition with fallback
 try:
     from ..logging_config import get_logger
+
     logger = get_logger(__name__)
 except (ImportError, AttributeError):
     # Fallback to standard logging
     import logging
+
     logger = logging.getLogger(__name__)
 ```
 

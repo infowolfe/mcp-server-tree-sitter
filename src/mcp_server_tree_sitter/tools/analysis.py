@@ -1,8 +1,9 @@
 """Code analysis tools using tree-sitter."""
 
+import logging
 import os
 from collections import Counter, defaultdict
-from typing import Any, Dict, List, Optional, Set, Tuple, cast
+from typing import Any, cast
 
 from ..exceptions import SecurityError
 from ..language.query_templates import get_query_template
@@ -19,6 +20,8 @@ from ..utils.tree_sitter_helpers import (
     parse_with_cached_tree,
     query_captures,
 )
+
+logger = logging.getLogger(__name__)
 
 _PYTHON_ALIASED_IMPORT_QUERY = """
                 (import_from_statement
@@ -56,7 +59,7 @@ def _disk_cache() -> Any:
     return get_container().content_cache
 
 
-def _tree_for_bytes(file_path: Any, language: str, source_bytes: bytes) -> Optional[Any]:
+def _tree_for_bytes(file_path: Any, language: str, source_bytes: bytes) -> Any | None:
     """Return a cached tree only when it was parsed from these exact bytes."""
     from ..di import get_container
 
@@ -78,9 +81,9 @@ def _cache_identity(language: str, language_registry: Any, *parts: str) -> str:
 def _symbol_identity(
     language: str,
     language_registry: Any,
-    symbol_types: List[str],
+    symbol_types: list[str],
     exclude_class_methods: bool,
-    queries: Dict[str, str],
+    queries: dict[str, str],
 ) -> str:
     material = [
         ",".join(sorted(symbol_types)),
@@ -120,13 +123,12 @@ def extract_symbols(
     project: Any,
     file_path: str,
     language_registry: Any,
-    symbol_types: Optional[List[str]] = None,
+    symbol_types: list[str] | None = None,
     exclude_class_methods: bool = False,
-    source_bytes: Optional[bytes] = None,
-    tree: Optional[Any] = None,
-) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Extract symbols (functions, classes, etc) from a file.
+    source_bytes: bytes | None = None,
+    tree: Any | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Extract symbols (functions, classes, etc) from a file.
 
     Args:
         project: Project object
@@ -154,11 +156,7 @@ def extract_symbols(
     # Default symbol types if not specified
     if symbol_types is None:
         # Language-specific defaults based on their structural elements
-        if language == "rust":
-            symbol_types = ["functions", "structs", "imports"]
-        elif language == "go":
-            symbol_types = ["functions", "structs", "imports"]
-        elif language == "c":
+        if language in {"rust", "go", "c"}:
             symbol_types = ["functions", "structs", "imports"]
         elif language == "cpp":
             symbol_types = ["functions", "classes", "structs", "imports"]
@@ -204,7 +202,7 @@ def extract_symbols(
     identity = _symbol_identity(language, language_registry, symbol_types, exclude_class_methods, queries)
     cached = _disk_cache().get(abs_path, "symbols", language, identity, source_bytes)
     if cached is not None:
-        return cast(Dict[str, List[Dict[str, Any]]], cached)
+        return cast("dict[str, list[dict[str, Any]]]", cached)
 
     # Parse file and extract symbols
     try:
@@ -222,7 +220,7 @@ def extract_symbols(
                 tree = parse_source(source_bytes, create_parser(safe_lang))
 
         # Execute queries
-        symbols: Dict[str, List[Dict[str, Any]]] = {}
+        symbols: dict[str, list[dict[str, Any]]] = {}
         # Track class ranges to identify methods
         class_ranges = []
 
@@ -235,7 +233,7 @@ def extract_symbols(
             class_matches = query_captures(class_query, tree.root_node)
 
             # Process class locations to identify their boundaries
-            process_symbol_matches(class_matches, "classes", symbols, source_bytes, tree)
+            process_symbol_matches(class_matches, "classes", symbols, source_bytes)
 
             # Extract class body ranges to check if functions are inside classes
             # Use a more generous range to ensure we catch all methods
@@ -265,7 +263,6 @@ def extract_symbols(
                 symbol_type,
                 symbols,
                 source_bytes,
-                tree,
                 (class_ranges if exclude_class_methods and symbol_type == "functions" else None),
             )
 
@@ -385,20 +382,17 @@ def extract_symbols(
 def process_symbol_matches(
     matches: Any,
     symbol_type: str,
-    symbols_dict: Dict[str, List[Dict[str, Any]]],
+    symbols_dict: dict[str, list[dict[str, Any]]],
     source_bytes: bytes,
-    tree: Any,
-    class_ranges: Optional[List[Tuple[int, int]]] = None,
+    class_ranges: list[tuple[int, int]] | None = None,
 ) -> None:
-    """
-    Process matches from a query and extract symbols.
+    """Process matches from a query and extract symbols.
 
     Args:
         matches: Query matches result
         symbol_type: Type of symbol being processed
         symbols_dict: Dictionary to store extracted symbols
         source_bytes: Source file bytes
-        tree: Parsed syntax tree
         class_ranges: Optional list of class ranges to filter out class methods
     """
 
@@ -406,13 +400,10 @@ def process_symbol_matches(
     def is_inside_class(node_row: int) -> bool:
         if not class_ranges:
             return False
-        for start_row, end_row in class_ranges:
-            if start_row <= node_row <= end_row:
-                return True
-        return False
+        return any(start_row <= node_row <= end_row for start_row, end_row in class_ranges)
 
     # Track functions that should be filtered out (methods inside classes)
-    filtered_methods: List[int] = []
+    filtered_methods: list[int] = []
 
     # Helper function to process a single node into a symbol
     def process_node(node: Any, capture_name: str) -> None:
@@ -506,8 +497,7 @@ def process_symbol_matches(
             symbols_dict[symbol_type].append(symbol)
 
         except Exception:
-            # Skip problematic nodes
-            pass
+            logger.debug("Skipping a symbol node that could not be read", exc_info=True)
 
     # Process nodes based on return format
     if isinstance(matches, dict):
@@ -536,10 +526,9 @@ def process_symbol_matches(
 
 
 def analyze_project_structure(
-    project: Any, language_registry: Any, scan_depth: int = 3, mcp_ctx: Optional[Any] = None
-) -> Dict[str, Any]:
-    """
-    Analyze the overall structure of a project.
+    project: Any, language_registry: Any, scan_depth: int = 3, mcp_ctx: Any | None = None
+) -> dict[str, Any]:
+    """Analyze the overall structure of a project.
 
     Args:
         project: Project object
@@ -653,8 +642,8 @@ def analyze_project_structure(
 
     if scan_depth > 0:
         # Analyze a sample of files from each language
-        for language, _ in languages.items():
-            extensions = [ext for ext, lang in language_registry._language_map.items() if lang == language]
+        for language in languages:
+            extensions = language_registry.simple_extensions(language)
 
             if not extensions:
                 continue
@@ -695,7 +684,7 @@ def analyze_project_structure(
                             }
                         )
                     except Exception:
-                        # Skip problematic files
+                        logger.debug("Skipping %s during project analysis", file_path, exc_info=True)
                         continue
 
                 if language_analysis:
@@ -718,9 +707,8 @@ def find_dependencies(
     project: Any,
     file_path: str,
     language_registry: Any,
-) -> Dict[str, List[str]]:
-    """
-    Find dependencies of a file.
+) -> dict[str, list[str]]:
+    """Find dependencies of a file.
 
     Args:
         project: Project object
@@ -749,7 +737,7 @@ def find_dependencies(
     identity = _dependency_identity(language, language_registry, query_string)
     cached = _disk_cache().get(abs_path, "dependencies", language, identity)
     if cached is not None:
-        return cast(Dict[str, List[str]], cached)
+        return cast("dict[str, list[str]]", cached)
 
     # Parse file and extract imports
     try:
@@ -765,9 +753,9 @@ def find_dependencies(
         matches = query_captures(query, tree.root_node)
 
         # Organize imports by type
-        imports: Dict[str, List[str]] = defaultdict(list)
+        imports: dict[str, list[str]] = defaultdict(list)
         # Track additional import information to handle aliased imports
-        module_imports: Set[str] = set()
+        module_imports: set[str] = set()
 
         # Helper function to process an import node
         def process_import_node(node: Any, capture_name: str) -> None:
@@ -776,10 +764,7 @@ def find_dependencies(
                 text = get_node_text(safe_node, source_bytes)
 
                 # Determine the import category
-                if capture_name.startswith("import."):
-                    category = capture_name.split(".", 1)[1]
-                else:
-                    category = "import"
+                category = capture_name.split(".", 1)[1] if capture_name.startswith("import.") else "import"
 
                 # Ensure we're adding a string to the list
                 text_str = text.decode("utf-8") if isinstance(text, bytes) else text
@@ -838,11 +823,10 @@ def find_dependencies(
                             module_imports.add(module_name)
                     elif parts[0] == "import":
                         for module in " ".join(parts[1:]).split(","):
-                            module = module.strip().split(" as ")[0].strip()
-                            module_imports.add(module)
+                            module_name = module.strip().split(" as ")[0].strip()
+                            module_imports.add(module_name)
             except Exception:
-                # Skip problematic nodes
-                pass
+                logger.debug("Skipping an import node that could not be read", exc_info=True)
 
         # Handle different return formats from query.captures()
         if isinstance(matches, dict):
@@ -884,7 +868,7 @@ def find_dependencies(
             # Process aliased imports
             for match in aliased_matches:
                 # Initialize variables
-                aliased_node: Optional[Any] = None
+                aliased_node: Any | None = None
                 # We're not using aliased_capture_name but need to unpack it
                 _: str = ""
 
@@ -929,9 +913,8 @@ def analyze_code_complexity(
     project: Any,
     file_path: str,
     language_registry: Any,
-) -> Dict[str, Any]:
-    """
-    Analyze code complexity.
+) -> dict[str, Any]:
+    """Analyze code complexity.
 
     Args:
         project: Project object
@@ -955,7 +938,7 @@ def analyze_code_complexity(
     identity = _complexity_identity(language, language_registry)
     cached = _disk_cache().get(abs_path, "complexity", language, identity)
     if cached is not None:
-        return cast(Dict[str, Any], cached)
+        return cast("dict[str, Any]", cached)
 
     # Parse file
     try:
@@ -999,7 +982,7 @@ def analyze_code_complexity(
             # Count decision points
             decision_types = _COMPLEXITY_NODES[language]
 
-            def count_nodes(node: Any, types: List[str]) -> int:
+            def count_nodes(node: Any, types: list[str]) -> int:
                 safe_node = ensure_node(node)
                 count = 0
                 if safe_node.type in types:

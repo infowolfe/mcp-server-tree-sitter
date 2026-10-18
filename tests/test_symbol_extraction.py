@@ -8,8 +8,9 @@ dependency analysis issues identified in FEATURES.md.
 import json
 import os
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from typing import Any
 
 import pytest
 
@@ -22,7 +23,7 @@ from tests.test_helpers import (
 
 
 @pytest.fixture
-def test_project(request) -> Generator[Dict[str, Any], None, None]:
+def test_project(request) -> Generator[dict[str, Any], None, None]:
     """Create a test project with Python files containing known symbols and imports."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir)
@@ -345,7 +346,7 @@ def test_symbol_extraction_with_ast_access(test_project) -> None:
         # Recurse into children
         if "children" in node:
             for i, child in enumerate(node["children"]):
-                extract_symbols_manually(child, path + (i,))
+                extract_symbols_manually(child, (*path, i))
 
     # Extract symbols from the AST
     extract_symbols_manually(tree)
@@ -443,9 +444,9 @@ def test_query_based_symbol_extraction(test_project) -> None:
         import_captures = query_captures(imports_q, tree.root_node)
 
         # Process and extract unique symbols
-        functions: Dict[str, Dict[str, Any]] = {}
-        classes: Dict[str, Dict[str, Any]] = {}
-        imports: Dict[str, Dict[str, Any]] = {}
+        functions: dict[str, dict[str, Any]] = {}
+        classes: dict[str, dict[str, Any]] = {}
+        imports: dict[str, dict[str, Any]] = {}
 
         # Helper function to process captures with different formats
         def process_capture(captures, target_type, result_dict) -> None:
@@ -487,7 +488,7 @@ def test_query_based_symbol_extraction(test_project) -> None:
                                 "end": node.end_point,
                             }
                 except Exception as e:
-                    print(f"Error processing captures: {str(e)}")
+                    print(f"Error processing captures: {e!s}")
 
         # Process each type of capture
         process_capture(function_captures, "function.name", functions)
@@ -539,7 +540,7 @@ def test_query_based_symbol_extraction(test_project) -> None:
                                 "end": node.end_point,
                             }
                 except Exception as e:
-                    print(f"Error processing import captures: {str(e)}")
+                    print(f"Error processing import captures: {e!s}")
 
         # Call the import capture processing function
         process_import_capture(import_captures)
@@ -569,8 +570,8 @@ def test_query_based_symbol_extraction(test_project) -> None:
             print("ISSUE: Import count mismatch")
 
     except Exception as e:
-        print(f"Error in direct query execution: {str(e)}")
-        pytest.fail(f"Direct query execution failed: {str(e)}")
+        print(f"Error in direct query execution: {e!s}")
+        pytest.fail(f"Direct query execution failed: {e!s}")
 
 
 def test_debug_file_saving(test_project) -> None:
@@ -621,12 +622,11 @@ def test_exact_symbol_type_capture_is_not_a_symbol() -> None:
         get_language("python"),
         "(function_definition name: (identifier) @function.name) @functions",
     )
-    symbols: Dict[str, List[Dict[str, Any]]] = {"functions": []}
+    symbols: dict[str, list[dict[str, Any]]] = {"functions": []}
     process_symbol_matches(
         query_captures(query, tree.root_node),
         "functions",
         symbols,
         source,
-        tree,
     )
     assert [item["name"] for item in symbols["functions"]] == ["greet"]

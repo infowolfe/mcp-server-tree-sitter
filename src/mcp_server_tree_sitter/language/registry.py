@@ -2,7 +2,7 @@
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from tree_sitter_language_pack import get_language as pack_get_language
 from tree_sitter_language_pack import get_parser as pack_get_parser
@@ -43,11 +43,11 @@ class LanguageRegistry:
         """
         self._lock = threading.RLock()
         self.prefer_installed_grammars = prefer_installed_grammars
-        self.languages: Dict[str, Language] = {}
-        self._origins: Dict[str, str] = {}
-        self._grammar_ids: Dict[str, str] = {}
-        self._grammars: Optional[Dict[str, installed_grammars.InstalledGrammar]] = None
-        self._display_names: Dict[str, str] = {}
+        self.languages: dict[str, Language] = {}
+        self._origins: dict[str, str] = {}
+        self._grammar_ids: dict[str, str] = {}
+        self._grammars: dict[str, installed_grammars.InstalledGrammar] | None = None
+        self._display_names: dict[str, str] = {}
         self._language_map = {
             "py": "python",
             "js": "javascript",
@@ -92,8 +92,7 @@ class LanguageRegistry:
         }
 
     def preload_languages(self, config: ServerConfig) -> None:
-        """
-        Pre-load preferred languages from configuration.
+        """Pre-load preferred languages from configuration.
 
         This method should be called after the dependency container is fully
         initialized to avoid circular import issues.
@@ -107,9 +106,8 @@ class LanguageRegistry:
             except Exception as e:
                 logger.warning(f"Failed to pre-load language {lang}: {e}")
 
-    def language_for_file(self, file_path: str) -> Optional[str]:
-        """
-        Detect language from file extension.
+    def language_for_file(self, file_path: str) -> str | None:
+        """Detect language from file extension.
 
         Args:
             file_path: Path to the file
@@ -127,21 +125,19 @@ class LanguageRegistry:
             return mapped
         # A new installed id is reachable as .<id>. Ids already in the map
         # keep their existing extensions and do not gain another one.
-        self._ensure_discovered()
-        assert self._grammars is not None
-        if ext in self._grammars and ext not in self._language_map.values():
+        grammars = self._require_grammars()
+        if ext in grammars and ext not in self._language_map.values():
             return ext
         return None
 
-    def extensions_for_language(self, language_name: str) -> List[str]:
+    def extensions_for_language(self, language_name: str) -> list[str]:
         """Return single and compound suffixes that map to this language id."""
         suffixes = [ext for ext, language in self._language_map.items() if language == language_name]
         suffixes.extend(ext for ext, language in _COMPOUND_MAP.items() if language == language_name)
         return suffixes
 
-    def list_available_languages(self) -> List[str]:
-        """
-        List languages that are available via tree-sitter-language-pack.
+    def list_available_languages(self) -> list[str]:
+        """List languages that are available via tree-sitter-language-pack.
 
         Returns:
             List of available language identifiers
@@ -153,9 +149,7 @@ class LanguageRegistry:
         # These correspond to the languages available in tree-sitter-language-pack
         available.update(set(self._language_map.values()))
         available.update(_COMPOUND_MAP.values())
-        self._ensure_discovered()
-        assert self._grammars is not None
-        available.update(self._grammars)
+        available.update(self._require_grammars())
 
         # Add frequently used languages that might not be in the map
         common_languages = [
@@ -187,9 +181,9 @@ class LanguageRegistry:
         # Return as a sorted list
         return sorted(available)
 
-    def list_installable_languages(self) -> List[Tuple[str, str]]:
-        """
-        List languages that can be installed.
+    def list_installable_languages(self) -> list[tuple[str, str]]:
+        """List languages that can be installed.
+
         With tree-sitter-language-pack, no additional installation is needed.
 
         Returns:
@@ -198,8 +192,7 @@ class LanguageRegistry:
         return []
 
     def is_language_available(self, language_name: str) -> bool:
-        """
-        Check if a language is available in tree-sitter-language-pack.
+        """Check if a language is available in tree-sitter-language-pack.
 
         Args:
             language_name: Language identifier
@@ -218,6 +211,21 @@ class LanguageRegistry:
         self._ensure_discovered()
         return self._display_names.get(language_name, language_name)
 
+    def _require_grammars(self) -> dict[str, Any]:
+        """Return the discovered grammar map.
+
+        ``_ensure_discovered`` fills the map. A missing map means discovery
+        did not run, which is a programming error rather than an empty install.
+        """
+        self._ensure_discovered()
+        if self._grammars is None:
+            raise RuntimeError("installed grammars were not discovered")
+        return self._grammars
+
+    def simple_extensions(self, language_name: str) -> list[str]:
+        """Return primary-map extensions for one language, without compound suffixes."""
+        return [ext for ext, language in self._language_map.items() if language == language_name]
+
     def _ensure_discovered(self) -> None:
         if self._grammars is not None:
             return
@@ -226,7 +234,7 @@ class LanguageRegistry:
             language_id: grammar.display_name for language_id, grammar in self._grammars.items() if grammar.display_name
         }
 
-    def _load_pack(self, language_name: str, grammar_id: Optional[str] = None) -> Any:
+    def _load_pack(self, language_name: str, grammar_id: str | None = None) -> Any:
         grammar_id = grammar_id or language_name
         try:
             # grammar_id is dynamic; the pack types want a literal.
@@ -241,11 +249,9 @@ class LanguageRegistry:
         self._grammar_ids[language_name] = grammar_id
         return language
 
-    def _load_installed(self, language_name: str, grammar_id: Optional[str] = None) -> Optional[Any]:
+    def _load_installed(self, language_name: str, grammar_id: str | None = None) -> Any | None:
         grammar_id = grammar_id or language_name
-        self._ensure_discovered()
-        assert self._grammars is not None
-        if grammar_id not in self._grammars:
+        if grammar_id not in self._require_grammars():
             return None
         try:
             language = installed_grammars.load_installed_language(grammar_id)
@@ -258,8 +264,7 @@ class LanguageRegistry:
         return language
 
     def get_language(self, language_name: str) -> Any:
-        """
-        Get or load a language by name.
+        """Get or load a language by name.
 
         The default order is the language pack, then an installed tree-sitter-*
         package. prefer_installed_grammars reverses that order.
@@ -293,8 +298,7 @@ class LanguageRegistry:
                 raise
 
     def get_parser(self, language_name: str) -> Parser:
-        """
-        Get a parser for the specified language.
+        """Get a parser for the specified language.
 
         The parser is built from the same origin as the language object.
         Pack languages use the pack parser. Installed languages use
@@ -310,8 +314,7 @@ class LanguageRegistry:
         grammar_id = self._grammar_ids.get(language_name, language_name)
         if self._origins.get(language_name) == "pack":
             try:
-                parser = pack_get_parser(grammar_id)  # type: ignore[arg-type]
-                return parser  # type: ignore[no-any-return]
+                return pack_get_parser(grammar_id)  # type: ignore[arg-type, no-any-return]
             except Exception:
                 logger.debug("Pack parser failed for %s; building one from the language", language_name)
         return create_parser(language)

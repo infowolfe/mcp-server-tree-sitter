@@ -1,7 +1,7 @@
 """Debug tools for diagnosing configuration issues."""
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
@@ -9,7 +9,7 @@ from ..config import ServerConfig, update_config_from_new
 from ..context import global_context
 
 
-def diagnose_yaml_config(config_path: str) -> Dict[str, Any]:
+def diagnose_yaml_config(config_path: str) -> dict[str, Any]:
     """Diagnose issues with YAML configuration loading.
 
     Args:
@@ -39,12 +39,12 @@ def diagnose_yaml_config(config_path: str) -> Dict[str, Any]:
 
     # Check if file is readable
     try:
-        with open(path_obj, "r") as f:
+        with open(path_obj) as f:
             content = f.read()
             result["readable"] = True
             result["file_content"] = content
     except Exception as e:
-        result["error"] = f"Error reading file: {str(e)}"
+        result["error"] = f"Error reading file: {e!s}"
         return result
 
     # Try to parse YAML
@@ -53,7 +53,7 @@ def diagnose_yaml_config(config_path: str) -> Dict[str, Any]:
         result["yaml_valid"] = True
         result["parsed_data"] = config_data
     except Exception as e:
-        result["error"] = f"Error parsing YAML: {str(e)}"
+        result["error"] = f"Error parsing YAML: {e!s}"
         return result
 
     # Check if parsed data is None or empty
@@ -96,7 +96,7 @@ def diagnose_yaml_config(config_path: str) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        result["error"] = f"Error updating config: {str(e)}"
+        result["error"] = f"Error updating config: {e!s}"
         return result
 
     return result

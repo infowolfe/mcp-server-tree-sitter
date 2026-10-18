@@ -13,7 +13,7 @@ from mcp_server_tree_sitter.language import installed, registry
 
 @pytest.fixture(autouse=True)
 def isolated_caches(monkeypatch):
-    monkeypatch.setattr(installed, "_discovered", None)
+    monkeypatch.setattr(installed._Discovery, "found", None)
     monkeypatch.setattr(installed, "_load_cache", {})
     monkeypatch.setattr(installed, "_scm_cache", {})
     monkeypatch.setattr(installed, "_distributions", list)

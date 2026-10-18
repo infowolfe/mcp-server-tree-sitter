@@ -6,7 +6,7 @@ Scope expectations follow the tables adapted from Carlos Faria
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import pytest
 from tree_sitter_language_pack import get_parser
@@ -89,7 +89,7 @@ def _register(tmp_path: Path, name: str, filename: str, source: str) -> str:
     return os.path.relpath(file_path, registered["root_path"])
 
 
-def _find(source: str, needle: str) -> Tuple[int, int]:
+def _find(source: str, needle: str) -> tuple[int, int]:
     data = source.encode()
     start = data.find(needle.encode())
     assert start >= 0, needle
@@ -104,7 +104,7 @@ def _at(
     source: str,
     needle: str,
     max_lines: int = 200,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     row, column = _find(source, needle)
     return get_enclosing_scope(
         get_project_registry().get_project(project),
@@ -117,18 +117,18 @@ def _at(
     )
 
 
-def _end(source: str, language: str) -> Tuple[int, int]:
+def _end(source: str, language: str) -> tuple[int, int]:
     tree = get_parser(language).parse(source.encode())
     end = tree.root_node.end_point
     return int(end[0]), int(end[1])
 
 
 @pytest.fixture
-def python_file(tmp_path: Path) -> Tuple[str, str]:
+def python_file(tmp_path: Path) -> tuple[str, str]:
     return "scope-python", _register(tmp_path, "scope-python", "sample.py", PYTHON_SOURCE)
 
 
-def test_cursor_inside_function(python_file: Tuple[str, str]) -> None:
+def test_cursor_inside_function(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "return 1")
     assert scope is not None
@@ -140,7 +140,7 @@ def test_cursor_inside_function(python_file: Tuple[str, str]) -> None:
     assert "def foo" in scope["text"]
 
 
-def test_cursor_on_method(python_file: Tuple[str, str]) -> None:
+def test_cursor_on_method(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "def meth")
     assert scope is not None
@@ -179,7 +179,7 @@ def test_cursor_on_decorator_returns_the_decorated_scope(tmp_path: Path) -> None
     assert method["text"].startswith("def f")
 
 
-def test_decorated_method(python_file: Tuple[str, str]) -> None:
+def test_decorated_method(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "return inner")
     assert scope is not None
@@ -190,7 +190,7 @@ def test_decorated_method(python_file: Tuple[str, str]) -> None:
     assert "return inner" in scope["text"]
 
 
-def test_function_nested_in_method_stays_function(python_file: Tuple[str, str]) -> None:
+def test_function_nested_in_method_stays_function(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "return 2")
     assert scope is not None
@@ -199,7 +199,7 @@ def test_function_nested_in_method_stays_function(python_file: Tuple[str, str]) 
     assert "return inner" not in scope["text"]
 
 
-def test_class_body_between_methods(python_file: Tuple[str, str]) -> None:
+def test_class_body_between_methods(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "z = 0")
     assert scope is not None
@@ -210,7 +210,7 @@ def test_class_body_between_methods(python_file: Tuple[str, str]) -> None:
     assert "def other" in scope["text"]
 
 
-def test_module_blank_line_is_truncated(python_file: Tuple[str, str]) -> None:
+def test_module_blank_line_is_truncated(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = get_enclosing_scope(
         get_project_registry().get_project(project),
@@ -230,7 +230,7 @@ def test_module_blank_line_is_truncated(python_file: Tuple[str, str]) -> None:
     assert "def foo" not in scope["text"]
 
 
-def test_module_max_lines_zero_is_not_truncated(python_file: Tuple[str, str]) -> None:
+def test_module_max_lines_zero_is_not_truncated(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = get_enclosing_scope(
         get_project_registry().get_project(project),
@@ -247,7 +247,7 @@ def test_module_max_lines_zero_is_not_truncated(python_file: Tuple[str, str]) ->
     assert scope["text"] == PYTHON_SOURCE
 
 
-def test_nested_function_at_module_level(python_file: Tuple[str, str]) -> None:
+def test_nested_function_at_module_level(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "return 9")
     assert scope is not None
@@ -255,7 +255,7 @@ def test_nested_function_at_module_level(python_file: Tuple[str, str]) -> None:
     assert scope["name"] == "nested"
 
 
-def test_module_level_function_is_not_a_method(python_file: Tuple[str, str]) -> None:
+def test_module_level_function_is_not_a_method(python_file: tuple[str, str]) -> None:
     project, path = python_file
     scope = _at(project, path, PYTHON_SOURCE, "return 4")
     assert scope is not None
@@ -263,7 +263,7 @@ def test_module_level_function_is_not_a_method(python_file: Tuple[str, str]) -> 
     assert scope["name"] == "bar"
 
 
-def test_exclusive_end_point_is_module(python_file: Tuple[str, str]) -> None:
+def test_exclusive_end_point_is_module(python_file: tuple[str, str]) -> None:
     project, path = python_file
     row, column = _end(PYTHON_SOURCE, "python")
     scope = get_enclosing_scope(
@@ -280,7 +280,7 @@ def test_exclusive_end_point_is_module(python_file: Tuple[str, str]) -> None:
     assert scope["truncated"] is True
 
 
-def test_row_past_eof_is_none(python_file: Tuple[str, str]) -> None:
+def test_row_past_eof_is_none(python_file: tuple[str, str]) -> None:
     project, path = python_file
     row, _column = _end(PYTHON_SOURCE, "python")
     scope = get_enclosing_scope(

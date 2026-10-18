@@ -3,13 +3,13 @@
 import importlib
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 
 from . import installed as installed_grammars
 from .templates import QUERY_TEMPLATES
 
 logger = logging.getLogger(__name__)
-_merged: Set[str] = set()
+_merged: set[str] = set()
 
 
 def _merge_extras(language: str) -> None:
@@ -34,9 +34,8 @@ def _merge_extras(language: str) -> None:
         QUERY_TEMPLATES[language] = current
 
 
-def get_query_template(language: str, template_name: str) -> Optional[str]:
-    """
-    Get a query template for a language.
+def get_query_template(language: str, template_name: str) -> str | None:
+    """Get a query template for a language.
 
     Args:
         language: Language identifier
@@ -52,9 +51,8 @@ def get_query_template(language: str, template_name: str) -> Optional[str]:
     return None
 
 
-def list_query_templates(language: Optional[Union[str, List[str]]] = None) -> Dict[str, Any]:
-    """
-    List available query templates.
+def list_query_templates(language: str | list[str] | None = None) -> dict[str, Any]:
+    """List available query templates.
 
     Args:
         language: Optional language or list of languages to filter by
@@ -63,10 +61,7 @@ def list_query_templates(language: Optional[Union[str, List[str]]] = None) -> Di
         Dictionary of templates by language
     """
     if language:
-        if isinstance(language, str):
-            languages = [lang.strip() for lang in language.split(",")]
-        else:
-            languages = language
+        languages = [lang.strip() for lang in language.split(",")] if isinstance(language, str) else language
         for lang in languages:
             _merge_extras(lang)
         return {lang: QUERY_TEMPLATES.get(lang, {}) for lang in languages}

@@ -5,8 +5,9 @@ This module contains tests focused on ensuring query result handling is robust a
 """
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any
 
 import pytest
 
@@ -14,7 +15,7 @@ from tests.test_helpers import register_project_tool, run_query
 
 
 @pytest.fixture
-def test_project(request) -> Generator[Dict[str, Any], None, None]:
+def test_project(request) -> Generator[dict[str, Any], None, None]:
     """Create a test project with Python files containing known constructs."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir)
@@ -86,16 +87,13 @@ def test_query_capture_processing(test_project) -> None:
     assert isinstance(result, list), "Query result should be a list"
 
     # Should find function definitions including at least 'process_data'
-    function_names = []
-    for capture in result:
-        if capture.get("capture") == "function.name":
-            function_names.append(capture.get("text"))
+    function_names = [capture.get("text") for capture in result if capture.get("capture") == "function.name"]
 
     assert "process_data" in function_names, "Query should find 'process_data' function"
 
 
 @pytest.mark.parametrize(
-    "query_string,expected_capture_count",
+    ("query_string", "expected_capture_count"),
     [
         # Function definitions
         ("(function_definition name: (identifier) @name) @function", 1),
@@ -140,10 +138,7 @@ def test_query_result_capture_types(test_project, query_string, expected_capture
         capture = r.get("capture")
         if capture is not None and isinstance(capture, str):
             # Handle both formats: with dot (e.g., "function.name") and without (e.g., "function")
-            if "." in capture:
-                part = capture.split(".")[-1]
-            else:
-                part = capture
+            part = capture.split(".")[-1] if "." in capture else capture
 
             if part in query_string:
                 capture_count += 1
@@ -200,7 +195,7 @@ def test_direct_query_with_language_pack() -> None:
         if isinstance(captures, list):
             for capture in captures:
                 # Initialize variables with correct types
-                node: Optional[Any] = None
+                node: Any | None = None
                 capture_name: str = ""
 
                 # Try different formats
@@ -220,20 +215,19 @@ def test_direct_query_with_language_pack() -> None:
                     if text == "hello":
                         hello_found = True
                         break
-        elif isinstance(captures, dict):
+        elif isinstance(captures, dict) and "name" in captures:
             # Dictionary mapping capture names to nodes
-            if "name" in captures:
-                for node in captures["name"]:
-                    if node is not None and hasattr(node, "text") and node.text is not None:
-                        text = node.text.decode("utf-8") if hasattr(node.text, "decode") else str(node.text)
-                        if text == "hello":
-                            hello_found = True
-                            break
+            for node in captures["name"]:
+                if node is not None and hasattr(node, "text") and node.text is not None:
+                    text = node.text.decode("utf-8") if hasattr(node.text, "decode") else str(node.text)
+                    if text == "hello":
+                        hello_found = True
+                        break
 
         assert hello_found, "Query should find 'hello' function name"
 
     except ImportError as e:
-        pytest.skip(f"Skipping test due to import error: {str(e)}")
+        pytest.skip(f"Skipping test due to import error: {e!s}")
 
 
 def test_query_result_structure_transformation() -> None:
@@ -242,7 +236,7 @@ def test_query_result_structure_transformation() -> None:
     # This helps verify result transformation is correct
 
     # Create a function to transform mock tree-sitter query results to expected MCP format
-    def transform_query_results(ts_results) -> List[Dict[str, Any]]:
+    def transform_query_results(ts_results) -> list[dict[str, Any]]:
         """Transform tree-sitter query results to MCP format."""
         # Implement a simplified version of what the actual transformation might be
         mcp_results = []

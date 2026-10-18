@@ -79,7 +79,7 @@ def test_mcp_server_initialized():
 def test_configure_with_context_basic(mock_container):
     """Test basic configuration with no specific settings."""
     # Call configure_with_context with only the container
-    config_dict, config = configure_with_context(mock_container)
+    config_dict, _config = configure_with_context(mock_container)
 
     # Verify that get_config was called
     mock_container.config_manager.get_config.assert_called()
@@ -97,7 +97,7 @@ def test_configure_with_context_basic(mock_container):
 def test_configure_with_context_cache_enabled(mock_container):
     """Test configuration with cache_enabled setting."""
     # Call configure_with_context with cache_enabled=False
-    config_dict, config = configure_with_context(mock_container, cache_enabled=False)
+    configure_with_context(mock_container, cache_enabled=False)
 
     # Verify update_value was called with correct parameters
     mock_container.config_manager.update_value.assert_called_with("cache.enabled", False)
@@ -109,7 +109,7 @@ def test_configure_with_context_cache_enabled(mock_container):
 def test_configure_with_context_max_file_size(mock_container):
     """Test configuration with max_file_size_mb setting."""
     # Call configure_with_context with max_file_size_mb=20
-    config_dict, config = configure_with_context(mock_container, max_file_size_mb=20)
+    configure_with_context(mock_container, max_file_size_mb=20)
 
     # Verify update_value was called with correct parameters
     mock_container.config_manager.update_value.assert_called_with("security.max_file_size_mb", 20)
@@ -137,7 +137,7 @@ def test_configure_with_context_log_level(mock_container):
                 "mcp_server_tree_sitter.test": None,
             },
         ):
-            config_dict, config = configure_with_context(mock_container, log_level="DEBUG")
+            configure_with_context(mock_container, log_level="DEBUG")
 
     # Verify update_value was called with correct parameters
     mock_container.config_manager.update_value.assert_called_with("log_level", "DEBUG")
@@ -165,7 +165,7 @@ cache:
         abs_path = os.path.abspath(config_path)
 
         # Call configure_with_context with the config path
-        config_dict, config = configure_with_context(mock_container, config_path=config_path)
+        configure_with_context(mock_container, config_path=config_path)
 
         # Verify load_from_file was called with correct path
         mock_container.config_manager.load_from_file.assert_called_with(abs_path)
@@ -181,7 +181,7 @@ def test_configure_with_context_nonexistent_config_path(mock_container):
     config_path = "/nonexistent/config.yaml"
 
     # Call configure_with_context with the nonexistent path
-    config_dict, config = configure_with_context(mock_container, config_path=config_path)
+    configure_with_context(mock_container, config_path=config_path)
 
     # Verify the function handled the nonexistent file gracefully
     mock_container.config_manager.load_from_file.assert_called_with(os.path.abspath(config_path))

@@ -30,9 +30,11 @@ def _result_files(root: Path) -> list[Path]:
     for shard in version.iterdir():
         if not shard.is_dir() or len(shard.name) != 2:
             continue
-        for entry in shard.iterdir():
-            if entry.is_file() and not entry.name.startswith(".") and len(entry.name) == 64:
-                found.append(entry)
+        found.extend(
+            entry
+            for entry in shard.iterdir()
+            if entry.is_file() and not entry.name.startswith(".") and len(entry.name) == 64
+        )
     return found
 
 
@@ -415,9 +417,16 @@ def test_second_process_reuses_derived_results(tmp_path):
     assert len(added) == 4
     assert any(item["name"] == "greet" for item in symbols["functions"])
 
-    script = """
+    env = os.environ.copy()
+    env["MCP_TS_LOG_LEVEL"] = "ERROR"
+    env["MCP_TS_CONTENT_CACHE_PROJECT"] = str(project_dir)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
 import json
-import sys
+import os
 from pathlib import Path
 
 from mcp_server_tree_sitter.di import get_container
@@ -432,7 +441,7 @@ def wrapped(*args, **kwargs):
     return original(*args, **kwargs)
 
 analysis.parse_with_cached_tree = wrapped
-project = Project("content-cache-demo", Path(sys.argv[1]))
+project = Project("content-cache-demo", Path(os.environ["MCP_TS_CONTENT_CACHE_PROJECT"]))
 registry = get_container().language_registry
 symbols = analysis.extract_symbols(project, "demo.py", registry)
 dependencies = analysis.find_dependencies(project, "demo.py", registry)
@@ -447,11 +456,8 @@ print(json.dumps({
     "dependencies": dependencies,
     "complexity": complexity,
 }))
-"""
-    env = os.environ.copy()
-    env["MCP_TS_LOG_LEVEL"] = "ERROR"
-    completed = subprocess.run(
-        [sys.executable, "-c", script, str(project_dir)],
+""",
+        ],
         capture_output=True,
         text=True,
         env=env,

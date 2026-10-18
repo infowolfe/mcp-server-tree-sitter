@@ -165,7 +165,7 @@ def test_python_environment(diagnostic) -> None:
         "python_version": sys.version,
         "python_path": sys.executable,
         "sys_path": sys.path,
-        "modules": sorted(list(sys.modules.keys())),
+        "modules": sorted(sys.modules.keys()),
     }
 
     diagnostic.add_detail("python_environment", env_info)

@@ -26,8 +26,8 @@ We follow a strict set of coding standards to maintain consistency throughout th
 
 ### Python Style
 
-- We use [Black](https://black.readthedocs.io/) for code formatting with a line length of 88 characters
-- We use [Ruff](https://github.com/charliermarsh/ruff) for linting
+- We use [Ruff](https://docs.astral.sh/ruff/) to format and lint, with every stable rule enabled. The line length is 120.
+- Install the git hook once, from the repository root: `uv run pre-commit install`
 - We use [MyPy](https://mypy.readthedocs.io/) for static type checking
 
 ### Exception Handling

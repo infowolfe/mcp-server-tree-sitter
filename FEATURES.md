@@ -28,7 +28,7 @@ This document provides a comprehensive overview of all MCP Tree-sitter server co
 The following programming languages are fully supported with symbol extraction, AST analysis, and query capabilities:
 
 | Language | Symbol Extraction | AST Analysis | Query Support |
-|----------|-------------------|--------------|--------------|  
+|----------|-------------------|--------------|--------------|
 | Python | ✅ | ✅ | ✅ |
 | JavaScript | ✅ | ✅ | ✅ |
 | TypeScript | ✅ | ✅ | ✅ |
@@ -163,7 +163,7 @@ run_query(
     project="my-project",
     query="(function_definition name: (identifier) @function.name) @function.def",
     file_path="src/main.py",
-    language="python"
+    language="python",
 )
 
 # List query templates for a language
@@ -201,11 +201,7 @@ get_dependencies(project="my-project", file_path="src/main.py")
 analyze_complexity(project="my-project", file_path="src/main.py")
 
 # Find similar code
-find_similar_code(
-    project="my-project",
-    snippet="print('Hello, world!')",
-    language="python"
-)
+find_similar_code(project="my-project", snippet="print('Hello, world!')", language="python")
 
 # Find symbol usage
 find_usage(project="my-project", symbol="main", language="python")

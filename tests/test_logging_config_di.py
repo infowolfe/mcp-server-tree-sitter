@@ -83,7 +83,7 @@ def test_log_level_setting_di(test_project):
 
     try:
         # Test with DEBUG level
-        with temp_config(**{"log_level": "DEBUG"}):
+        with temp_config(log_level="DEBUG"):
             # Apply configuration
             configure(log_level="DEBUG")
 
@@ -103,7 +103,7 @@ def test_log_level_setting_di(test_project):
                 assert "DEBUG:" in logs, "DEBUG level messages should be present"
 
         # Test with INFO level (less verbose)
-        with temp_config(**{"log_level": "INFO"}):
+        with temp_config(log_level="INFO"):
             # Apply configuration
             configure(log_level="INFO")
 

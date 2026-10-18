@@ -1,7 +1,7 @@
 """AST operation tools for MCP server."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..exceptions import FileAccessError, ParsingError
 from ..language.scope_types import kind_for_node_type
@@ -21,12 +21,11 @@ def get_file_ast(
     path: str,
     language_registry: Any,
     tree_cache: Any,
-    max_depth: Optional[int] = None,
+    max_depth: int | None = None,
     include_text: bool = True,
-    language: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Get the AST for a file.
+    language: str | None = None,
+) -> dict[str, Any]:
+    """Get the AST for a file.
 
     Args:
         project: Project object
@@ -72,8 +71,7 @@ def get_file_ast(
 
 
 def parse_file(file_path: Any, language: str, language_registry: Any, tree_cache: Any) -> tuple[Any, bytes]:
-    """
-    Parse a file using tree-sitter.
+    """Parse a file using tree-sitter.
 
     Args:
         file_path: Path to file
@@ -106,7 +104,7 @@ def parse_file(file_path: Any, language: str, language_registry: Any, tree_cache
         is_cache_enabled = False
         try:
             # Get cache enabled state from tree_cache
-            is_cache_enabled = tree_cache._is_cache_enabled()
+            is_cache_enabled = tree_cache.cache_enabled()
         except Exception:
             # Fallback to instance value if method not available
             is_cache_enabled = getattr(tree_cache, "enabled", False)
@@ -120,9 +118,8 @@ def parse_file(file_path: Any, language: str, language_registry: Any, tree_cache
         raise ParsingError(f"Error parsing {file_path}: {e}") from e
 
 
-def find_node_at_position(root_node: Any, row: int, column: int) -> Optional[Any]:
-    """
-    Find the most specific node at a given position.
+def find_node_at_position(root_node: Any, row: int, column: int) -> Any | None:
+    """Find the most specific node at a given position.
 
     Args:
         root_node: Root node to search from
@@ -162,7 +159,7 @@ def get_enclosing_scope(
     language_registry: Any,
     tree_cache: Any,
     max_lines: int = 200,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Return the nearest function, method, class, or module around a cursor.
 
     Positions are 0-based, matching get_node_at_position. File access is
@@ -219,7 +216,7 @@ def get_enclosing_scope(
     return _scope_payload(scope_node, kind, language, source_bytes, path, max_lines)
 
 
-def _node_at_cursor(root: Any, here: tuple[int, int], end: tuple[int, int]) -> Optional[Any]:
+def _node_at_cursor(root: Any, here: tuple[int, int], end: tuple[int, int]) -> Any | None:
     """Return the node that starts at the cursor when a zero-width hit is an ancestor.
 
     Some grammars answer descendant_for_point_range(point, point) with the
@@ -295,7 +292,7 @@ def _nearest_scope(language: str, node: Any, root: Any) -> tuple[Any, str]:
     return root, "module"
 
 
-def _scope_kind(language: str, node: Any) -> Optional[str]:
+def _scope_kind(language: str, node: Any) -> str | None:
     node_type = str(node.type)
     if language == "go" and node_type == "type_spec" and not _is_go_struct_spec(node):
         return None
@@ -397,7 +394,7 @@ def _class_and_struct_names(root: Any) -> set[bytes]:
     return names
 
 
-def _child_of_type(node: Any, node_type: str) -> Optional[Any]:
+def _child_of_type(node: Any, node_type: str) -> Any | None:
     for index in range(node.child_count):
         child = node.child(index)
         if child is not None and child.type == node_type:
@@ -405,7 +402,7 @@ def _child_of_type(node: Any, node_type: str) -> Optional[Any]:
     return None
 
 
-def _find_node_type(node: Any, node_type: str) -> Optional[Any]:
+def _find_node_type(node: Any, node_type: str) -> Any | None:
     if node is None:
         return None
     stack = [node]
@@ -420,7 +417,7 @@ def _find_node_type(node: Any, node_type: str) -> Optional[Any]:
     return None
 
 
-def _declarator_name_node(node: Any) -> Optional[Any]:
+def _declarator_name_node(node: Any) -> Any | None:
     """Walk function, pointer, reference, and parenthesized declarators.
 
     A reference_declarator in the C++ grammar has no declarator field. The
@@ -446,7 +443,7 @@ def _declarator_name_node(node: Any) -> Optional[Any]:
     return None
 
 
-def _declarator_wrapper_child(node: Any) -> Optional[Any]:
+def _declarator_wrapper_child(node: Any) -> Any | None:
     for index in range(node.child_count):
         child = node.child(index)
         if child is not None and child.type in _C_DECLARATOR_WRAPPERS:
@@ -461,7 +458,7 @@ def _scope_payload(
     source_bytes: bytes,
     path: str,
     max_lines: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     text, truncated = _truncate_lines(_node_text(node, source_bytes), max_lines)
     start = _point_tuple(node.start_point)
     end = _point_tuple(node.end_point)
@@ -477,7 +474,7 @@ def _scope_payload(
     }
 
 
-def _scope_name(language: str, node: Any, source_bytes: bytes) -> Optional[str]:
+def _scope_name(language: str, node: Any, source_bytes: bytes) -> str | None:
     if language in ("c", "cpp") and node.type == "function_definition":
         name_node = _declarator_name_node(node)
         if name_node is None:
@@ -516,7 +513,7 @@ def _scope_name(language: str, node: Any, source_bytes: bytes) -> Optional[str]:
     return _node_text(named, source_bytes) or None
 
 
-def _kotlin_name(node: Any, source_bytes: bytes) -> Optional[str]:
+def _kotlin_name(node: Any, source_bytes: bytes) -> str | None:
     """Kotlin declarations have no name field."""
     if node.type in ("getter", "setter"):
         # The getter is the next sibling of the property, not a child of it.
@@ -534,7 +531,7 @@ def _kotlin_name(node: Any, source_bytes: bytes) -> Optional[str]:
     return None
 
 
-def _preceding_property_name(node: Any, source_bytes: bytes) -> Optional[str]:
+def _preceding_property_name(node: Any, source_bytes: bytes) -> str | None:
     parent = node.parent
     if parent is None:
         return None
@@ -555,7 +552,7 @@ def _preceding_property_name(node: Any, source_bytes: bytes) -> Optional[str]:
     return _node_text(ident, source_bytes) or None
 
 
-def _swift_property_name(node: Any, source_bytes: bytes) -> Optional[str]:
+def _swift_property_name(node: Any, source_bytes: bytes) -> str | None:
     parent = node.parent
     if parent is None or parent.type != "property_declaration":
         return None
@@ -577,7 +574,7 @@ def _julia_short_function(node: Any) -> bool:
     return False
 
 
-def _julia_name(node: Any, source_bytes: bytes) -> Optional[str]:
+def _julia_name(node: Any, source_bytes: bytes) -> str | None:
     if node.type == "function_definition":
         signature = _child_of_type(node, "signature")
         call = _child_of_type(signature, "call_expression") if signature is not None else None
@@ -593,7 +590,7 @@ def _julia_name(node: Any, source_bytes: bytes) -> Optional[str]:
     return None
 
 
-def _call_callee_name(call: Any, source_bytes: bytes) -> Optional[str]:
+def _call_callee_name(call: Any, source_bytes: bytes) -> str | None:
     """The callee is the first identifier. Later identifiers are arguments."""
     if call is None:
         return None
@@ -604,7 +601,7 @@ def _call_callee_name(call: Any, source_bytes: bytes) -> Optional[str]:
     return None
 
 
-def _first_descendant(node: Any, node_type: str) -> Optional[Any]:
+def _first_descendant(node: Any, node_type: str) -> Any | None:
     stack = [node]
     while stack:
         current = stack.pop()
@@ -619,7 +616,7 @@ def _first_descendant(node: Any, node_type: str) -> Optional[Any]:
     return None
 
 
-def _dart_body_after(node: Any) -> Optional[Any]:
+def _dart_body_after(node: Any) -> Any | None:
     current = node
     while current is not None and str(current.type) in _DART_BODY_ANCHORS:
         parent = current.parent
@@ -645,7 +642,7 @@ def _dart_body_after(node: Any) -> Optional[Any]:
     return None
 
 
-def _dart_function_name(node: Any, source_bytes: bytes) -> Optional[str]:
+def _dart_function_name(node: Any, source_bytes: bytes) -> str | None:
     """The signature is the previous sibling, not a child of function_body."""
     parent = node.parent
     if parent is None:
@@ -683,7 +680,7 @@ def _dart_function_name(node: Any, source_bytes: bytes) -> Optional[str]:
     return None
 
 
-def _dart_constructor_name(node: Any, source_bytes: bytes) -> Optional[str]:
+def _dart_constructor_name(node: Any, source_bytes: bytes) -> str | None:
     """Join C and C.named. The name field alone is only the type identifier."""
     parts: list[str] = []
     for index in range(node.child_count):

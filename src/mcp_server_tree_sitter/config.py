@@ -14,7 +14,7 @@ The precedence order for configuration is:
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -35,17 +35,17 @@ class CacheConfig(BaseModel):
     max_size_mb: int = 100
     ttl_seconds: int = 300  # Time-to-live for cached items
     # Shared result directory. None uses MCP_TS_CACHE_DIR, then the XDG cache home.
-    directory: Optional[str] = None
+    directory: str | None = None
 
 
 class SecurityConfig(BaseModel):
     """Security settings."""
 
     max_file_size_mb: int = 5
-    excluded_dirs: List[str] = Field(
+    excluded_dirs: list[str] = Field(
         default_factory=lambda: [".git", "node_modules", "__pycache__", ".venv", "venv", ".tox"]
     )
-    allowed_extensions: Optional[List[str]] = None  # None means all extensions allowed
+    allowed_extensions: list[str] | None = None  # None means all extensions allowed
 
 
 class LanguageConfig(BaseModel):
@@ -53,7 +53,7 @@ class LanguageConfig(BaseModel):
 
     auto_install: bool = False  # DEPRECATED: No longer used with tree-sitter-language-pack
     default_max_depth: int = 5  # Default depth for AST traversal
-    preferred_languages: List[str] = Field(default_factory=list)
+    preferred_languages: list[str] = Field(default_factory=list)
     # Startup-only. The registry is built once and does not reload cached languages.
     prefer_installed_grammars: bool = False
 
@@ -72,7 +72,7 @@ class ServiceConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8765
     mount_path: str = "/mcp"
-    socket: Optional[str] = None
+    socket: str | None = None
 
 
 class ServerConfig(BaseModel):
@@ -95,7 +95,7 @@ class ServerConfig(BaseModel):
             return cls()
 
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 file_content = f.read()
                 logger.debug(f"YAML File content:\n{file_content}")
                 config_data = yaml.safe_load(file_content)
@@ -113,11 +113,8 @@ class ServerConfig(BaseModel):
             update_config_from_env(config)
 
             return config
-        except Exception as e:
-            logger.error(f"Error loading configuration from {path}: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
+        except Exception:
+            logger.exception(f"Error loading configuration from {path}")
             return cls()
 
     @classmethod
@@ -213,16 +210,15 @@ def _convert_value(value_str: str, current_value: Any) -> Any:
     try:
         if isinstance(current_value, bool):
             return value_str.lower() in ("true", "yes", "1", "y", "t", "on")
-        elif isinstance(current_value, int):
+        if isinstance(current_value, int):
             return int(value_str)
-        elif isinstance(current_value, float):
+        if isinstance(current_value, float):
             return float(value_str)
-        elif isinstance(current_value, list):
+        if isinstance(current_value, list):
             # Convert comma-separated string to list
             return [item.strip() for item in value_str.split(",")]
-        else:
-            # Default to string
-            return value_str
+        # Default to string
+        return value_str
     except (ValueError, TypeError) as e:
         # If conversion fails, log a warning and return the original value
         logger.warning(f"Failed to convert value '{value_str}' to type {type(current_value).__name__}: {e}")
@@ -232,7 +228,7 @@ def _convert_value(value_str: str, current_value: Any) -> Any:
 class ConfigurationManager:
     """Manages server configuration without relying on global variables."""
 
-    def __init__(self, initial_config: Optional[ServerConfig] = None):
+    def __init__(self, initial_config: ServerConfig | None = None) -> None:
         """Initialize with optional initial configuration.
 
         Auto-discovers and loads YAML config from MCP_TS_CONFIG_PATH env var
@@ -245,7 +241,7 @@ class ConfigurationManager:
         # Auto-discover and load YAML config from env var or default path
         config_path = os.environ.get("MCP_TS_CONFIG_PATH")
         if config_path:
-            path_to_load: Optional[Path] = Path(config_path)
+            path_to_load: Path | None = Path(config_path)
         else:
             path_to_load = get_default_config_path()
 
@@ -254,8 +250,8 @@ class ConfigurationManager:
             try:
                 new_config = ServerConfig.from_file(str(path_to_load))
                 update_config_from_new(self._config, new_config)
-            except Exception as e:
-                self._logger.error(f"Error auto-loading configuration from {path_to_load}: {e}")
+            except Exception:
+                self._logger.exception(f"Error auto-loading configuration from {path_to_load}")
 
         # Apply environment variables (highest precedence)
         update_config_from_env(self._config)
@@ -264,7 +260,7 @@ class ConfigurationManager:
         """Get the current configuration."""
         return self._config
 
-    def load_from_file(self, path: Union[str, Path]) -> ServerConfig:
+    def load_from_file(self, path: str | Path) -> ServerConfig:
         """Load configuration from a YAML file."""
         self._logger.info(f"Loading configuration from file: {path}")
         config_path = Path(path)
@@ -278,7 +274,7 @@ class ConfigurationManager:
             return self._config
 
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 file_content = f.read()
                 self._logger.info(f"YAML File content:\n{file_content}")
                 # Check if file content is empty
@@ -319,8 +315,8 @@ class ConfigurationManager:
                     f"New config: cache.max_size_mb = {new_config.cache.max_size_mb}, "
                     f"security.max_file_size_mb = {new_config.security.max_file_size_mb}"
                 )
-            except Exception as e:
-                self._logger.error(f"Error creating ServerConfig from YAML data: {e}")
+            except Exception:
+                self._logger.exception("Error creating ServerConfig from YAML data")
                 return self._config
 
             # Instead of simply replacing config object, use update_config_from_new to ensure
@@ -372,11 +368,8 @@ class ConfigurationManager:
 
             return self._config
 
-        except Exception as e:
-            self._logger.error(f"Error loading configuration from {path}: {e}")
-            import traceback
-
-            self._logger.error(traceback.format_exc())
+        except Exception:
+            self._logger.exception(f"Error loading configuration from {path}")
             return self._config
 
     def update_value(self, path: str, value: Any) -> None:
@@ -400,27 +393,26 @@ class ConfigurationManager:
                     self._logger.warning(f"Unknown config key: {key} in section {section}")
             else:
                 self._logger.warning(f"Unknown config section: {section}")
-        else:
-            # Handle top-level attributes
-            if hasattr(self._config, path):
-                old_value = getattr(self._config, path)
-                setattr(self._config, path, value)
-                self._logger.debug(f"Updated config value {path} from {old_value} to {value}")
+        # Handle top-level attributes
+        elif hasattr(self._config, path):
+            old_value = getattr(self._config, path)
+            setattr(self._config, path, value)
+            self._logger.debug(f"Updated config value {path} from {old_value} to {value}")
 
-                # If updating log_level, apply it using centralized bootstrap function
-                if path == "log_level":
-                    # Use centralized bootstrap module
-                    update_log_levels(value)
-                    self._logger.debug(f"Applied log level {value} to mcp_server_tree_sitter loggers")
-            else:
-                self._logger.warning(f"Unknown config path: {path}")
+            # If updating log_level, apply it using centralized bootstrap function
+            if path == "log_level":
+                # Use centralized bootstrap module
+                update_log_levels(value)
+                self._logger.debug(f"Applied log level {value} to mcp_server_tree_sitter loggers")
+        else:
+            self._logger.warning(f"Unknown config path: {path}")
 
         # After direct updates, ensure environment variables still have precedence
         # by reapplying them - this ensures consistency in the precedence model
         # Environment variables > Explicit updates > YAML > Defaults
         update_config_from_env(self._config)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to a dictionary."""
         return self._config.model_dump()
 
@@ -432,7 +424,7 @@ class ConfigurationManager:
 # 3. Configuration passed as function parameters
 
 
-def get_default_config_path() -> Optional[Path]:
+def get_default_config_path() -> Path | None:
     """Get the default configuration file path based on the platform."""
     import platform
 
@@ -459,7 +451,7 @@ def update_config_from_new(original: ServerConfig, new: ServerConfig) -> None:
             setattr(original, name, value)
 
 
-def load_config(config_path: Optional[str] = None) -> ServerConfig:
+def load_config(config_path: str | None = None) -> ServerConfig:
     """Load and initialize configuration.
 
     Args:
@@ -497,7 +489,7 @@ def load_config(config_path: Optional[str] = None) -> ServerConfig:
         try:
             logger.info(f"Loading configuration from file: {path_to_load}")
 
-            with open(path_to_load, "r") as f:
+            with open(path_to_load) as f:
                 content = f.read()
                 logger.debug(f"File content:\n{content}")
                 if not content.strip():
@@ -505,7 +497,7 @@ def load_config(config_path: Optional[str] = None) -> ServerConfig:
                     # Continue to apply environment variables below
                 else:
                     # Load new configuration
-                    logger.info(f"Loading configuration from {str(path_to_load)}")
+                    logger.info(f"Loading configuration from {path_to_load!s}")
                     new_config = ServerConfig.from_file(str(path_to_load))
 
                     # Debug output before update
@@ -524,11 +516,8 @@ def load_config(config_path: Optional[str] = None) -> ServerConfig:
                         f"security.max_file_size_mb = {config.security.max_file_size_mb}"
                     )
 
-        except Exception as e:
-            logger.error(f"Error loading configuration from {path_to_load}: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
+        except Exception:
+            logger.exception(f"Error loading configuration from {path_to_load}")
 
     # Apply environment variables to configuration
     # This ensures that environment variables have the highest precedence

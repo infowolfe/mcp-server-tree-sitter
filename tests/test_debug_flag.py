@@ -61,9 +61,8 @@ def test_debug_flag_with_preexisting_env():
         # Restore original environment
         if original_env is not None:
             os.environ["MCP_TS_LOG_LEVEL"] = original_env
-        else:
-            if "MCP_TS_LOG_LEVEL" in os.environ:
-                del os.environ["MCP_TS_LOG_LEVEL"]
+        elif "MCP_TS_LOG_LEVEL" in os.environ:
+            del os.environ["MCP_TS_LOG_LEVEL"]
 
         # Restore logger state
         pkg_logger.setLevel(original_level)
@@ -169,9 +168,8 @@ def test_environment_variable_updates_log_level():
         # Restore original environment
         if original_env is not None:
             os.environ["MCP_TS_LOG_LEVEL"] = original_env
-        else:
-            if "MCP_TS_LOG_LEVEL" in os.environ:
-                del os.environ["MCP_TS_LOG_LEVEL"]
+        elif "MCP_TS_LOG_LEVEL" in os.environ:
+            del os.environ["MCP_TS_LOG_LEVEL"]
 
         # Restore logger state
         pkg_logger.setLevel(original_level)
@@ -237,9 +235,8 @@ def test_configure_root_logger_syncs_handlers():
         # Restore original environment
         if original_env is not None:
             os.environ["MCP_TS_LOG_LEVEL"] = original_env
-        else:
-            if "MCP_TS_LOG_LEVEL" in os.environ:
-                del os.environ["MCP_TS_LOG_LEVEL"]
+        elif "MCP_TS_LOG_LEVEL" in os.environ:
+            del os.environ["MCP_TS_LOG_LEVEL"]
 
         # Restore logger state
         test_logger.setLevel(original_test_level)

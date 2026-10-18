@@ -29,6 +29,7 @@ install:
 .PHONY: install-dev
 install-dev:
 	$(UV) pip install -e ".[dev]"
+	$(UV) run pre-commit install
 
 .PHONY: install-all
 install-all:

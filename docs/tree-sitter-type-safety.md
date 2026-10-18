@@ -24,7 +24,7 @@ Some versions of tree-sitter use `set_language()` while others use `language` as
 try:
     parser.set_language(safe_language)  # type: ignore
 except AttributeError:
-    if hasattr(parser, 'language'):
+    if hasattr(parser, "language"):
         # Use the language method if available
         parser.language = safe_language  # type: ignore
     else:

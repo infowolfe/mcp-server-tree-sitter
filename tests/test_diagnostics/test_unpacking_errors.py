@@ -1,8 +1,10 @@
 """Pytest-based diagnostic tests for the unpacking errors in analysis functions."""
 
 import tempfile
+from collections.abc import Generator
+from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any
 
 import pytest
 
@@ -11,7 +13,7 @@ from tests.test_helpers import analyze_complexity, get_dependencies, get_symbols
 
 
 @pytest.fixture
-def test_project() -> Generator[Dict[str, Any], None, None]:
+def test_project() -> Generator[dict[str, Any], None, None]:
     """Create a temporary test project with a sample file."""
     # Set up a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -52,10 +54,8 @@ if __name__ == "__main__":
 
         # Clean up
         project_registry = get_project_registry()
-        try:
+        with suppress(Exception):
             project_registry.remove_project(project_name)
-        except Exception:
-            pass
 
 
 @pytest.mark.diagnostic

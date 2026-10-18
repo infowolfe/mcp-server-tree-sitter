@@ -4,7 +4,7 @@ This module provides a central container for managing all application dependenci
 replacing the global variables and singletons previously used throughout the codebase.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 # Import logging from bootstrap package
 from .bootstrap import get_logger
@@ -43,13 +43,12 @@ class DependencyContainer:
         self.language_registry.preload_languages(self._config)
 
         # Storage for any additional dependencies
-        self._additional: Dict[str, Any] = {}
+        self._additional: dict[str, Any] = {}
 
     def get_config(self) -> ServerConfig:
         """Get the current configuration."""
         # Always get the latest from the config manager
-        config = self.config_manager.get_config()
-        return config
+        return self.config_manager.get_config()
 
     def register_dependency(self, name: str, instance: Any) -> None:
         """Register an additional dependency."""

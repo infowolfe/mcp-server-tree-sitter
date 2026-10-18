@@ -1,13 +1,10 @@
 """Tools for building and manipulating tree-sitter queries."""
 
-from typing import Dict, List
-
 from ..language.query_templates import get_query_template
 
 
 def get_template(language: str, pattern: str) -> str:
-    """
-    Get a query template with optional parameter replacement.
+    """Get a query template with optional parameter replacement.
 
     Args:
         language: Language identifier
@@ -25,9 +22,8 @@ def get_template(language: str, pattern: str) -> str:
     return pattern
 
 
-def build_compound_query(language: str, patterns: List[str], combine: str = "or") -> str:
-    """
-    Build a compound query from multiple patterns.
+def build_compound_query(language: str, patterns: list[str], combine: str = "or") -> str:
+    """Build a compound query from multiple patterns.
 
     Args:
         language: Language identifier
@@ -56,9 +52,8 @@ def build_compound_query(language: str, patterns: List[str], combine: str = "or"
     return combined
 
 
-def adapt_query(query: str, from_language: str, to_language: str) -> Dict[str, str]:
-    """
-    Adapt a query from one language to another.
+def adapt_query(query: str, from_language: str, to_language: str) -> dict[str, str]:
+    """Adapt a query from one language to another.
 
     Args:
         query: Original query string
@@ -78,8 +73,7 @@ def adapt_query(query: str, from_language: str, to_language: str) -> Dict[str, s
 
 
 def adapt_query_for_language(query: str, from_language: str, to_language: str) -> str:
-    """
-    Try to adapt a query from one language to another.
+    """Try to adapt a query from one language to another.
 
     Args:
         query: Original query
@@ -126,9 +120,8 @@ def adapt_query_for_language(query: str, from_language: str, to_language: str) -
     return query
 
 
-def describe_node_types(language: str) -> Dict[str, str]:
-    """
-    Get descriptions of common node types for a language.
+def describe_node_types(language: str) -> dict[str, str]:
+    """Get descriptions of common node types for a language.
 
     Args:
         language: Language identifier

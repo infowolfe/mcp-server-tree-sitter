@@ -2,8 +2,9 @@
 
 import tempfile
 import time
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any
 
 import pytest
 
@@ -17,7 +18,7 @@ from tests.test_helpers import (
 
 
 @pytest.fixture
-def rust_project(request) -> Generator[Dict[str, Any], None, None]:
+def rust_project(request) -> Generator[dict[str, Any], None, None]:
     """Create a test project with Rust files."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir)
@@ -172,16 +173,14 @@ def test_rust_ast_parsing(rust_project) -> None:
 
     def find_nodes(node, node_types) -> None:
         if isinstance(node, dict) and "type" in node:
-            if node["type"] == "struct_item":
-                if "children" in node:
-                    for child in node["children"]:
-                        if child.get("type") == "type_identifier":
-                            structs_found.append(child.get("text", ""))
-            elif node["type"] == "function_item":
-                if "children" in node:
-                    for child in node["children"]:
-                        if child.get("type") == "identifier":
-                            functions_found.append(child.get("text", ""))
+            if node["type"] == "struct_item" and "children" in node:
+                structs_found.extend(
+                    child.get("text", "") for child in node["children"] if child.get("type") == "type_identifier"
+                )
+            elif node["type"] == "function_item" and "children" in node:
+                functions_found.extend(
+                    child.get("text", "") for child in node["children"] if child.get("type") == "identifier"
+                )
             elif node["type"] == "impl_item":
                 impl_blocks_found.append(node)
 
@@ -387,16 +386,14 @@ fn main() {
 
     def find_specific_nodes(node) -> None:
         if isinstance(node, dict) and "type" in node:
-            if node["type"] == "trait_item":
-                if "children" in node:
-                    for child in node["children"]:
-                        if child.get("type") == "type_identifier":
-                            traits_found.append(child.get("text", ""))
-            elif node["type"] == "macro_definition":
-                if "children" in node:
-                    for child in node["children"]:
-                        if child.get("type") == "identifier":
-                            macros_found.append(child.get("text", ""))
+            if node["type"] == "trait_item" and "children" in node:
+                traits_found.extend(
+                    child.get("text", "") for child in node["children"] if child.get("type") == "type_identifier"
+                )
+            elif node["type"] == "macro_definition" and "children" in node:
+                macros_found.extend(
+                    child.get("text", "") for child in node["children"] if child.get("type") == "identifier"
+                )
 
             if "children" in node:
                 for child in node["children"]:

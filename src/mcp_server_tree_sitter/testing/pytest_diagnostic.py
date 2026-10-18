@@ -5,13 +5,17 @@ while maintaining standard test pass/fail behavior.
 """
 
 import json
+import logging
 import time
 import traceback
+from collections.abc import Generator
 from json import JSONEncoder
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any
 
 import pytest
+
+logger = logging.getLogger(__name__)
 
 
 # Custom JSON Encoder that can handle binary data
@@ -48,24 +52,24 @@ class DiagnosticJSONEncoder(JSONEncoder):
 
 
 # Global storage for test context and diagnostic results
-_DIAGNOSTICS: Dict[str, "DiagnosticData"] = {}
-_CURRENT_TEST: Dict[str, Any] = {}
+_DIAGNOSTICS: dict[str, "DiagnosticData"] = {}
+_CURRENT_TEST: dict[str, Any] = {}
 
 
 class DiagnosticData:
     """Container for diagnostic information."""
 
-    def __init__(self, test_id: str):
+    def __init__(self, test_id: str) -> None:
         """Initialize with test ID."""
         self.test_id = test_id
         self.start_time = time.time()
-        self.end_time: Optional[float] = None
+        self.end_time: float | None = None
         self.status = "pending"
-        self.details: Dict[str, Any] = {}
-        self.errors: List[Dict[str, Any]] = []
-        self.artifacts: Dict[str, Any] = {}
+        self.details: dict[str, Any] = {}
+        self.errors: list[dict[str, Any]] = []
+        self.artifacts: dict[str, Any] = {}
 
-    def add_error(self, error_type: str, message: str, tb: Optional[str] = None) -> None:
+    def add_error(self, error_type: str, message: str, tb: str | None = None) -> None:
         """Add an error to the diagnostic data."""
         error_info = {
             "type": error_type,
@@ -90,7 +94,7 @@ class DiagnosticData:
         if not self.errors:
             self.status = status
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "test_id": self.test_id,
@@ -126,25 +130,7 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "diagnostic: mark test as producing diagnostic information")
 
 
-def pytest_runtest_protocol(item: Any, nextitem: Any) -> Optional[bool]:
-    """Custom test protocol that captures detailed diagnostics."""
-    # Use the standard protocol
-    return None
-
-
-def pytest_runtest_setup(item: Any) -> None:
-    """Set up the test environment."""
-    # This is no longer needed as we use the request fixture
-    pass
-
-
-def pytest_runtest_teardown(item: Any) -> None:
-    """Clean up after a test."""
-    # This is no longer needed as we use the request fixture
-    pass
-
-
-def pytest_terminal_summary(terminalreporter: Any, exitstatus: Any, config: Any) -> None:
+def pytest_terminal_summary(terminalreporter: Any) -> None:
     """Add diagnostic summary to the terminal output."""
     if _DIAGNOSTICS:
         terminalreporter.write_sep("=", "Diagnostic Summary")
@@ -161,7 +147,7 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: Any, config: Any)
                         terminalreporter.write_line(f"  Error {i + 1}: {error['type']}: {error['message']}")
 
 
-def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
+def pytest_sessionfinish(session: Any) -> None:
     """Generate JSON reports at the end of the test session."""
     output_dir = Path("diagnostic_results")
     output_dir.mkdir(exist_ok=True)
@@ -189,11 +175,16 @@ def pytest_sessionfinish(session: Any, exitstatus: Any) -> None:
             cls=DiagnosticJSONEncoder,
         )
 
-    print(f"\nDiagnostic results saved to {output_file}")
+    message = f"Diagnostic results saved to {output_file}"
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is not None:
+        reporter.write_line(message)
+    else:
+        logger.info(message)
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:
+def pytest_exception_interact(node: Any, call: Any) -> None:
     """Capture exception details for diagnostics."""
     if call.excinfo:
         try:
@@ -204,5 +195,5 @@ def pytest_exception_interact(node: Any, call: Any, report: Any) -> None:
                 exc_value = str(call.excinfo.value)
                 tb_str = "\n".join(traceback.format_tb(call.excinfo.tb))
                 diag.add_error(exc_type, exc_value, tb_str)
-        except Exception as e:
-            print(f"Error recording diagnostic info: {e}")
+        except Exception:
+            logger.exception("Error recording diagnostic info")

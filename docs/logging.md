@@ -72,6 +72,7 @@ update_log_levels("DEBUG")
 
 # Or use numeric values
 import logging
+
 update_log_levels(logging.INFO)
 ```
 

@@ -4,7 +4,9 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Optional, cast
+
+from typing_extensions import Self
 
 from ..exceptions import ProjectError
 from ..utils.path import get_project_root, normalize_path
@@ -13,15 +15,15 @@ from ..utils.path import get_project_root, normalize_path
 class Project:
     """Represents a project for code analysis."""
 
-    def __init__(self, name: str, path: Path, description: Optional[str] = None):
+    def __init__(self, name: str, path: Path, description: str | None = None) -> None:
         self.name = name
         self.root_path = path
         self.description = description
-        self.languages: Dict[str, int] = {}  # Language -> file count
+        self.languages: dict[str, int] = {}  # Language -> file count
         self.last_scan_time = 0
         self.scan_lock = threading.Lock()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
             "name": self.name,
@@ -31,9 +33,8 @@ class Project:
             "last_scan_time": self.last_scan_time,
         }
 
-    def scan_files(self, language_registry: Any, force: bool = False) -> Dict[str, int]:
-        """
-        Scan project files and identify languages.
+    def scan_files(self, language_registry: Any, force: bool = False) -> dict[str, int]:
+        """Scan project files and identify languages.
 
         Args:
             language_registry: LanguageRegistry instance
@@ -47,8 +48,8 @@ class Project:
             return self.languages
 
         with self.scan_lock:
-            languages: Dict[str, int] = {}
-            scanned: Set[str] = set()
+            languages: dict[str, int] = {}
+            scanned: set[str] = set()
 
             # Get excluded directories from config
             try:
@@ -90,8 +91,7 @@ class Project:
             return languages
 
     def get_file_path(self, relative_path: str) -> Path:
-        """
-        Get absolute file path from project-relative path.
+        """Get absolute file path from project-relative path.
 
         Args:
             relative_path: Path relative to project root
@@ -119,25 +119,27 @@ class ProjectRegistry:
     _instance: Optional["ProjectRegistry"] = None
     _global_lock = threading.RLock()
 
-    def __new__(cls) -> "ProjectRegistry":
+    def __new__(cls) -> Self:
         """Implement singleton pattern with proper locking."""
         with cls._global_lock:
             if cls._instance is None:
-                instance = super(ProjectRegistry, cls).__new__(cls)
-                # We need to set attributes on the instance, not the class
-                instance._projects = {}
-                cls._instance = instance
-            return cls._instance
+                created = super().__new__(cls)
+                # Initialization lives here so it happens once, under the lock.
+                created._projects = {}
+                cls._instance = created
+            instance = cls._instance
+            if instance is None:
+                raise RuntimeError("project registry was not created")
+            return cast("Self", instance)
 
     def __init__(self) -> None:
         """Initialize the registry only once."""
         # The actual initialization is done in __new__ to ensure it happens exactly once
         if not hasattr(self, "_projects"):
-            self._projects: Dict[str, Project] = {}
+            self._projects: dict[str, Project] = {}
 
-    def register_project(self, name: str, path: str, description: Optional[str] = None) -> Project:
-        """
-        Register a new project.
+    def register_project(self, name: str, path: str, description: str | None = None) -> Project:
+        """Register a new project.
 
         Args:
             name: Project name
@@ -170,8 +172,7 @@ class ProjectRegistry:
                 raise ProjectError(f"Failed to register project: {e}") from e
 
     def get_project(self, name: str) -> Project:
-        """
-        Get a project by name.
+        """Get a project by name.
 
         Args:
             name: Project name
@@ -185,12 +186,10 @@ class ProjectRegistry:
         with self._global_lock:
             if name not in self._projects:
                 raise ProjectError(f"Project '{name}' not found")
-            project = self._projects[name]
-            return project
+            return self._projects[name]
 
-    def list_projects(self) -> List[Dict[str, Any]]:
-        """
-        List all registered projects.
+    def list_projects(self) -> list[dict[str, Any]]:
+        """List all registered projects.
 
         Returns:
             List of project dictionaries
@@ -199,8 +198,7 @@ class ProjectRegistry:
             return [project.to_dict() for project in self._projects.values()]
 
     def remove_project(self, name: str) -> None:
-        """
-        Remove a project.
+        """Remove a project.
 
         Args:
             name: Project name

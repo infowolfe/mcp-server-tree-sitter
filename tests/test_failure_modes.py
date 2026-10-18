@@ -10,8 +10,9 @@ These tests help ensure robust behavior in various scenarios.
 """
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any
 
 import pytest
 
@@ -28,7 +29,7 @@ from tests.test_helpers import (
 
 
 @pytest.fixture
-def mock_project(request) -> Generator[Dict[str, Any], None, None]:
+def mock_project(request) -> Generator[dict[str, Any], None, None]:
     """Create a mock project fixture for testing with unique names."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir)
@@ -156,7 +157,7 @@ class TestDependencyAnalysis:
 
         # It should find the 'os' module
         found_os = False
-        for _key, values in result.items():
+        for values in result.values():
             if any("os" in str(value) for value in values):
                 found_os = True
                 break
@@ -193,7 +194,7 @@ class TestCodeSearch:
 
 
 @pytest.mark.parametrize(
-    "command_name,function,args",
+    ("command_name", "function", "args"),
     [
         (
             "run_query",

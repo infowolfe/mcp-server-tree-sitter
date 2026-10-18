@@ -140,8 +140,7 @@ def test_security_file_size_limit(test_project):
         # Create a comment line with approx 1000 chars
         comment_line = "# " + "X" * 998 + "\n"
         # Write ~1100 lines for a ~1.1MB file
-        for _ in range(1100):
-            f.write(comment_line)
+        f.writelines(comment_line for _ in range(1100))
 
     # Set a 1MB file size limit
     with temp_config(**{"security.max_file_size_mb": 1}):

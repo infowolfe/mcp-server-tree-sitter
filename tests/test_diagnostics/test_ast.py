@@ -1,6 +1,7 @@
 """Example of using pytest with diagnostic plugin for testing."""
 
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -34,10 +35,8 @@ def test_project():
 
         # Clean up
         project_registry = get_project_registry()
-        try:
+        with suppress(Exception):
             project_registry.remove_project(project_name)
-        except Exception:
-            pass
 
 
 @pytest.mark.diagnostic

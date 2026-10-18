@@ -1,8 +1,9 @@
 """Tests for ast.py module."""
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from typing import Any
 
 import pytest
 
@@ -16,7 +17,7 @@ from mcp_server_tree_sitter.models.ast import (
 
 
 @pytest.fixture
-def test_files() -> Generator[Dict[str, Path], None, None]:
+def test_files() -> Generator[dict[str, Path], None, None]:
     """Create temporary test files in various languages."""
     with tempfile.TemporaryDirectory() as temp_dir:
         dir_path = Path(temp_dir)
@@ -72,7 +73,7 @@ console.log(person.greet());
 
 
 @pytest.fixture
-def parsed_trees(test_files) -> Dict[str, Any]:
+def parsed_trees(test_files) -> dict[str, Any]:
     """Parse the test files and return trees and source code."""
     result = {}
 
@@ -207,7 +208,7 @@ def test_node_to_dict_with_large_depth(parsed_trees):
     root_dict = node_to_dict(py_tree.root_node, py_source, max_depth=10)
 
     # Verify we can get deep into the tree (e.g., to function body)
-    def find_deep_node(node_dict: Dict[str, Any], node_types: List[str]) -> bool:
+    def find_deep_node(node_dict: dict[str, Any], node_types: list[str]) -> bool:
         """Recursively search for a node of a specific type."""
         if node_dict["type"] in node_types:
             return True
@@ -332,7 +333,7 @@ def test_extract_node_path_intermediate_node(parsed_trees):
     # Find class definition node
     class_node = None
     for child in py_tree.root_node.children:
-        if child.type == "class_definition" or child.type == "class":
+        if child.type in {"class_definition", "class"}:
             class_node = child
             break
 
@@ -351,7 +352,7 @@ def test_extract_node_path_intermediate_node(parsed_trees):
     if class_body:
         # Find a method in the class body
         for child in class_body.children:
-            if child.type == "function_definition" or child.type == "method_definition":
+            if child.type in {"function_definition", "method_definition"}:
                 method_node = child
                 break
 

@@ -17,7 +17,7 @@ atexit.register(shutil.rmtree, _CONTENT_CACHE_DIR, True)
 pytest_plugins = ["mcp_server_tree_sitter.testing.pytest_diagnostic"]
 
 
-@pytest.fixture(autouse=True, scope="function")
+@pytest.fixture(autouse=True)
 def reset_project_registry():
     """Reset the project registry between tests.
 

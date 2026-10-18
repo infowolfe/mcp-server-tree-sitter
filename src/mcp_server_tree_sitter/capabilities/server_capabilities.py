@@ -1,14 +1,13 @@
 """Server capability declarations for MCP integration."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 def register_capabilities(mcp_server: Any) -> None:
-    """
-    Register MCP server capabilities.
+    """Register MCP server capabilities.
 
     Args:
         mcp_server: MCP server instance
@@ -23,15 +22,14 @@ def register_capabilities(mcp_server: Any) -> None:
 
     # FastMCP may not have capability method, so we'll skip this for now
     # @mcp_server.capability("prompts.listChanged")
-    def handle_prompts_list_changed() -> Dict[str, Any]:
+    def handle_prompts_list_changed() -> dict[str, Any]:
         """Handle prompt template management events."""
         logger.debug("Received prompts.listChanged event")
         return {"status": "success"}
 
     # @mcp_server.capability("resources.subscribe")
-    def handle_resources_subscribe(resource_uri: str) -> Dict[str, Any]:
-        """
-        Handle resource subscription requests.
+    def handle_resources_subscribe(resource_uri: str) -> dict[str, Any]:
+        """Handle resource subscription requests.
 
         Args:
             resource_uri: Resource URI to subscribe to
@@ -43,21 +41,20 @@ def register_capabilities(mcp_server: Any) -> None:
         return {"status": "success", "resource": resource_uri}
 
     # @mcp_server.capability("resources.listChanged")
-    def handle_resources_list_changed() -> Dict[str, Any]:
+    def handle_resources_list_changed() -> dict[str, Any]:
         """Handle resource discovery events."""
         logger.debug("Received resources.listChanged event")
         return {"status": "success"}
 
     # @mcp_server.capability("tools.listChanged")
-    def handle_tools_list_changed() -> Dict[str, Any]:
+    def handle_tools_list_changed() -> dict[str, Any]:
         """Handle tool discovery events."""
         logger.debug("Received tools.listChanged event")
         return {"status": "success"}
 
     # @mcp_server.capability("logging")
-    def handle_logging(level: str, message: str) -> Dict[str, Any]:
-        """
-        Handle logging configuration.
+    def handle_logging(level: str, message: str) -> dict[str, Any]:
+        """Handle logging configuration.
 
         Args:
             level: Log level
@@ -79,9 +76,8 @@ def register_capabilities(mcp_server: Any) -> None:
         return {"status": "success"}
 
     # @mcp_server.capability("completion")
-    def handle_completion(text: str, position: int) -> Dict[str, Any]:
-        """
-        Handle argument completion suggestions.
+    def handle_completion(text: str, position: int) -> dict[str, Any]:
+        """Handle argument completion suggestions.
 
         Args:
             text: Current input text
@@ -91,12 +87,12 @@ def register_capabilities(mcp_server: Any) -> None:
             Completion suggestions
         """
         # Simple completion for commonly used arguments
-        suggestions: List[Dict[str, str]] = []
+        suggestions: list[dict[str, str]] = []
 
         # Extract the current word being typed
         current_word = ""
         i = position - 1
-        while i >= 0 and text[i].isalnum() or text[i] == "_":
+        while (i >= 0 and text[i].isalnum()) or text[i] == "_":
             current_word = text[i] + current_word
             i -= 1
 
@@ -118,9 +114,11 @@ def register_capabilities(mcp_server: Any) -> None:
         if current_word and "language" in text[:position].lower():
             # Use container's language registry
             language_registry = container.language_registry
-            for language in language_registry.list_available_languages():
-                if language.startswith(current_word):
-                    suggestions.append({"text": language, "description": f"Language: {language}"})
+            suggestions.extend(
+                {"text": language, "description": f"Language: {language}"}
+                for language in language_registry.list_available_languages()
+                if language.startswith(current_word)
+            )
 
         # Config suggestions
         if current_word and "config" in text[:position].lower():

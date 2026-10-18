@@ -2,7 +2,7 @@
 
 import logging
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp_server_tree_sitter.api import (
     clear_cache as api_clear_cache,
@@ -121,23 +121,23 @@ def temp_config(**kwargs):
 
 
 # Project Management Tools
-def register_project_tool(path: str, name: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
+def register_project_tool(path: str, name: str | None = None, description: str | None = None) -> dict[str, Any]:
     """Register a project directory for code exploration."""
     return api_register_project(path, name, description)
 
 
-def list_projects_tool() -> List[Dict[str, Any]]:
+def list_projects_tool() -> list[dict[str, Any]]:
     """List all registered projects."""
     return api_list_projects()
 
 
-def remove_project_tool(name: str) -> Dict[str, str]:
+def remove_project_tool(name: str) -> dict[str, str]:
     """Remove a registered project."""
     return api_remove_project(name)
 
 
 # Language Tools
-def list_languages() -> Dict[str, Any]:
+def list_languages() -> dict[str, Any]:
     """List available languages."""
     language_registry = get_language_registry()
     available = language_registry.list_available_languages()
@@ -147,7 +147,7 @@ def list_languages() -> Dict[str, Any]:
     }
 
 
-def check_language_available(language: str) -> Dict[str, str]:
+def check_language_available(language: str) -> dict[str, str]:
     """Check if a tree-sitter language parser is available."""
     language_registry = get_language_registry()
     if language_registry.is_language_available(language):
@@ -155,32 +155,31 @@ def check_language_available(language: str) -> Dict[str, str]:
             "status": "success",
             "message": f"Language '{language}' is available via tree-sitter-language-pack",
         }
-    else:
-        return {
-            "status": "error",
-            "message": f"Language '{language}' is not available",
-        }
+    return {
+        "status": "error",
+        "message": f"Language '{language}' is not available",
+    }
 
 
 # File Operations
 def list_files(
     project: str,
-    pattern: Optional[str] = None,
-    max_depth: Optional[int] = None,
-    extensions: Optional[List[str]] = None,
-) -> List[str]:
+    pattern: str | None = None,
+    max_depth: int | None = None,
+    extensions: list[str] | None = None,
+) -> list[str]:
     """List files in a project."""
     project_registry = get_project_registry()
     return list_project_files(project_registry.get_project(project), pattern, max_depth, extensions)
 
 
-def get_file(project: str, path: str, max_lines: Optional[int] = None, start_line: int = 0) -> str:
+def get_file(project: str, path: str, max_lines: int | None = None, start_line: int = 0) -> str:
     """Get content of a file."""
     project_registry = get_project_registry()
     return get_file_content(project_registry.get_project(project), path, max_lines=max_lines, start_line=start_line)
 
 
-def get_file_metadata(project: str, path: str) -> Dict[str, Any]:
+def get_file_metadata(project: str, path: str) -> dict[str, Any]:
     """Get metadata for a file."""
     project_registry = get_project_registry()
     return get_file_info(project_registry.get_project(project), path)
@@ -190,10 +189,10 @@ def get_file_metadata(project: str, path: str) -> Dict[str, Any]:
 def get_ast(
     project: str,
     path: str,
-    max_depth: Optional[int] = None,
+    max_depth: int | None = None,
     include_text: bool = True,
-    language: Optional[str] = None,
-) -> Dict[str, Any]:
+    language: str | None = None,
+) -> dict[str, Any]:
     """Get abstract syntax tree for a file."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -213,7 +212,7 @@ def get_ast(
     )
 
 
-def get_node_at_position(project: str, path: str, row: int, column: int) -> Optional[Dict[str, Any]]:
+def get_node_at_position(project: str, path: str, row: int, column: int) -> dict[str, Any] | None:
     """Find the AST node at a specific position."""
     from mcp_server_tree_sitter.models.ast import node_to_dict
 
@@ -241,13 +240,13 @@ def get_node_at_position(project: str, path: str, row: int, column: int) -> Opti
 def find_text(
     project: str,
     pattern: str,
-    file_pattern: Optional[str] = None,
+    file_pattern: str | None = None,
     max_results: int = 100,
     case_sensitive: bool = False,
     whole_word: bool = False,
     use_regex: bool = False,
     context_lines: int = 2,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Search for text pattern in project files."""
     project_registry = get_project_registry()
     return search_text(
@@ -265,10 +264,10 @@ def find_text(
 def run_query(
     project: str,
     query: str,
-    file_path: Optional[str] = None,
-    language: Optional[str] = None,
+    file_path: str | None = None,
+    language: str | None = None,
     max_results: int = 100,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Run a tree-sitter query on project files."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -285,7 +284,7 @@ def run_query(
     )
 
 
-def get_query_template_tool(language: str, template_name: str) -> Dict[str, Any]:
+def get_query_template_tool(language: str, template_name: str) -> dict[str, Any]:
     """Get a predefined tree-sitter query template."""
     template = get_query_template(language, template_name)
     if not template:
@@ -298,12 +297,12 @@ def get_query_template_tool(language: str, template_name: str) -> Dict[str, Any]
     }
 
 
-def list_query_templates_tool(language: Optional[str] = None) -> Dict[str, Any]:
+def list_query_templates_tool(language: str | None = None) -> dict[str, Any]:
     """List available query templates."""
     return list_query_templates(language)
 
 
-def build_query(language: str, patterns: List[str], combine: str = "or") -> Dict[str, str]:
+def build_query(language: str, patterns: list[str], combine: str = "or") -> dict[str, str]:
     """Build a tree-sitter query from templates or patterns."""
     query = build_compound_query(language, patterns, combine)
     return {
@@ -312,7 +311,7 @@ def build_query(language: str, patterns: List[str], combine: str = "or") -> Dict
     }
 
 
-def adapt_query(query: str, from_language: str, to_language: str) -> Dict[str, str]:
+def adapt_query(query: str, from_language: str, to_language: str) -> dict[str, str]:
     """Adapt a query from one language to another."""
     adapted = adapt_query_for_language(query, from_language, to_language)
     return {
@@ -323,15 +322,13 @@ def adapt_query(query: str, from_language: str, to_language: str) -> Dict[str, s
     }
 
 
-def get_node_types(language: str) -> Dict[str, str]:
+def get_node_types(language: str) -> dict[str, str]:
     """Get descriptions of common node types for a language."""
     return describe_node_types(language)
 
 
 # Code Analysis Tools
-def get_symbols(
-    project: str, file_path: str, symbol_types: Optional[List[str]] = None
-) -> Dict[str, List[Dict[str, Any]]]:
+def get_symbols(project: str, file_path: str, symbol_types: list[str] | None = None) -> dict[str, list[dict[str, Any]]]:
     """Extract symbols from a file."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -339,7 +336,7 @@ def get_symbols(
     return extract_symbols(project_registry.get_project(project), file_path, language_registry, symbol_types)
 
 
-def analyze_project(project: str, scan_depth: int = 3, ctx: Optional[Any] = None) -> Dict[str, Any]:
+def analyze_project(project: str, scan_depth: int = 3, ctx: Any | None = None) -> dict[str, Any]:
     """Analyze overall project structure."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -347,7 +344,7 @@ def analyze_project(project: str, scan_depth: int = 3, ctx: Optional[Any] = None
     return analyze_project_structure(project_registry.get_project(project), language_registry, scan_depth, ctx)
 
 
-def get_dependencies(project: str, file_path: str) -> Dict[str, List[str]]:
+def get_dependencies(project: str, file_path: str) -> dict[str, list[str]]:
     """Find dependencies of a file."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -359,7 +356,7 @@ def get_dependencies(project: str, file_path: str) -> Dict[str, List[str]]:
     )
 
 
-def analyze_complexity(project: str, file_path: str) -> Dict[str, Any]:
+def analyze_complexity(project: str, file_path: str) -> dict[str, Any]:
     """Analyze code complexity."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -374,10 +371,10 @@ def analyze_complexity(project: str, file_path: str) -> Dict[str, Any]:
 def find_similar_code(
     project: str,
     snippet: str,
-    language: Optional[str] = None,
+    language: str | None = None,
     threshold: float = 0.8,
     max_results: int = 10,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Find similar code to a snippet."""
     # This is a simple implementation that uses text search
     project_registry = get_project_registry()
@@ -412,9 +409,9 @@ def find_similar_code(
 def find_usage(
     project: str,
     symbol: str,
-    file_path: Optional[str] = None,
-    language: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    file_path: str | None = None,
+    language: str | None = None,
+) -> list[dict[str, Any]]:
     """Find usage of a symbol."""
     project_registry = get_project_registry()
     language_registry = get_language_registry()
@@ -439,18 +436,18 @@ def find_usage(
 
 
 # Cache Management
-def clear_cache(project: Optional[str] = None, file_path: Optional[str] = None) -> Dict[str, str]:
+def clear_cache(project: str | None = None, file_path: str | None = None) -> dict[str, str]:
     """Clear the parse tree cache."""
     return api_clear_cache(project, file_path)
 
 
 # Server configuration
 def configure(
-    config_path: Optional[str] = None,
-    cache_enabled: Optional[bool] = None,
-    max_file_size_mb: Optional[int] = None,
-    log_level: Optional[str] = None,
-) -> Dict[str, Any]:
+    config_path: str | None = None,
+    cache_enabled: bool | None = None,
+    max_file_size_mb: int | None = None,
+    log_level: str | None = None,
+) -> dict[str, Any]:
     """Configure the server using the DI container."""
     container = get_container()
     config_manager = container.config_manager
@@ -489,11 +486,11 @@ def configure(
 
 def configure_with_context(
     context: Any,
-    config_path: Optional[str] = None,
-    cache_enabled: Optional[bool] = None,
-    max_file_size_mb: Optional[int] = None,
-    log_level: Optional[str] = None,
-) -> tuple[Dict[str, Any], Any]:
+    config_path: str | None = None,
+    cache_enabled: bool | None = None,
+    max_file_size_mb: int | None = None,
+    log_level: str | None = None,
+) -> tuple[dict[str, Any], Any]:
     """
     Configure with explicit context - compatibility function.
 

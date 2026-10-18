@@ -4,7 +4,7 @@ import os
 import socket
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import click
 from mcp.server.fastmcp import FastMCP
@@ -22,11 +22,11 @@ logger = get_logger(__name__)
 
 def configure_with_context(
     container: DependencyContainer,
-    config_path: Optional[str] = None,
-    cache_enabled: Optional[bool] = None,
-    max_file_size_mb: Optional[int] = None,
-    log_level: Optional[str] = None,
-) -> Tuple[Dict[str, Any], ServerConfig]:
+    config_path: str | None = None,
+    cache_enabled: bool | None = None,
+    max_file_size_mb: int | None = None,
+    log_level: str | None = None,
+) -> tuple[dict[str, Any], ServerConfig]:
     """Configure the server with explicit context.
 
     Args:
@@ -264,9 +264,9 @@ def _print_version() -> None:
     try:
         version = importlib.metadata.version("tree-sitter-mcp-ng")
     except importlib.metadata.PackageNotFoundError:
-        print("mcp-server-tree-sitter (version unknown - package not installed)")
+        click.echo("mcp-server-tree-sitter (version unknown - package not installed)")
     else:
-        print(f"mcp-server-tree-sitter version {version}")
+        click.echo(f"mcp-server-tree-sitter version {version}")
 
 
 @click.command(

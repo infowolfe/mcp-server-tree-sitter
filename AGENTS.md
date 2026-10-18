@@ -11,6 +11,7 @@ MCP Tree-sitter Server — a Model Context Protocol server providing code analys
 ```bash
 uv venv --python 3.12
 uv pip install -e ".[dev]"
+uv run pre-commit install
 ```
 
 ## Before Committing
@@ -18,10 +19,10 @@ uv pip install -e ".[dev]"
 All of these must pass — CI enforces them:
 
 ```bash
-ruff check src/               # Lint (E, F, I, W, B rules)
-ruff format --check src/      # Format check
+ruff check .                     # Lint (every stable Ruff rule; see pyproject.toml)
+ruff format --check .            # Format check, including docs
 mypy src/mcp_server_tree_sitter  # Type check
-pytest tests/                  # 217+ tests, must all pass
+pytest tests/                    # 217+ tests, must all pass
 ```
 
 Or use the Makefile: `make prepare`

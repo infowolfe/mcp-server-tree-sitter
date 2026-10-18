@@ -1,27 +1,29 @@
 """Search tools for tree-sitter code analysis."""
 
 import concurrent.futures
+import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..exceptions import QueryError, SecurityError
 from ..utils.security import validate_file_access
 from ..utils.tree_sitter_helpers import parse_source
 
+logger = logging.getLogger(__name__)
+
 
 def search_text(
     project: Any,
     pattern: str,
-    file_pattern: Optional[str] = None,
+    file_pattern: str | None = None,
     max_results: int = 100,
     case_sensitive: bool = False,
     whole_word: bool = False,
     use_regex: bool = False,
     context_lines: int = 0,
-) -> List[Dict[str, Any]]:
-    """
-    Search for text pattern in project files.
+) -> list[dict[str, Any]]:
+    """Search for text pattern in project files.
 
     Args:
         project: Project object
@@ -38,7 +40,7 @@ def search_text(
     """
     root = project.root_path
 
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     pattern_obj = None
 
     # Prepare the pattern
@@ -60,12 +62,12 @@ def search_text(
     file_pattern = file_pattern or "**/*"
 
     # Process files in parallel
-    def process_file(file_path: Path) -> List[Dict[str, Any]]:
+    def process_file(file_path: Path) -> list[dict[str, Any]]:
         file_results = []
         try:
             validate_file_access(file_path, root)
 
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
 
             for i, line in enumerate(lines, 1):
@@ -112,16 +114,12 @@ def search_text(
                     if len(file_results) >= max_results:
                         break
         except Exception:
-            # Skip files that can't be read
-            pass
+            logger.debug("Skipping unreadable file %s", file_path, exc_info=True)
 
         return file_results
 
     # Collect files to process
-    files_to_process = []
-    for path in root.glob(file_pattern):
-        if path.is_file():
-            files_to_process.append(path)
+    files_to_process = [path for path in root.glob(file_pattern) if path.is_file()]
 
     # Process files in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -142,15 +140,14 @@ def query_code(
     query_string: str,
     language_registry: Any,
     tree_cache: Any,
-    file_path: Optional[str] = None,
-    language: Optional[str] = None,
+    file_path: str | None = None,
+    language: str | None = None,
     max_results: int = 100,
     include_snippets: bool = True,
-    capture_filter: Optional[str] = None,
+    capture_filter: str | None = None,
     compact: bool = False,
-) -> List[Dict[str, Any]]:
-    """
-    Run a tree-sitter query on code files.
+) -> list[dict[str, Any]]:
+    """Run a tree-sitter query on code files.
 
     Args:
         project: Project object
@@ -161,12 +158,14 @@ def query_code(
         language: Language to use (required if file_path not provided)
         max_results: Maximum number of results to return
         include_snippets: Whether to include code snippets in results
+        capture_filter: When set, keep only captures with this name
+        compact: When true, return only the capture name and matched text
 
     Returns:
         List of query matches
     """
     root = project.root_path
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     if file_path is not None:
         # Query a specific file
@@ -186,8 +185,8 @@ def query_code(
                 raise QueryError(f"Could not detect language for {file_path}")
 
         try:
-            # Check if we have a cached tree
-            assert language is not None  # For type checking
+            if language is None:
+                raise QueryError(f"Could not detect language for {file_path}")
             cached = tree_cache.get(abs_path, language)
             if cached:
                 tree, source_bytes = cached
@@ -231,7 +230,7 @@ def query_code(
                             text = "<binary data>"
 
                         if compact:
-                            result: Dict[str, Any] = {"capture": capture_name, "text": text}
+                            result: dict[str, Any] = {"capture": capture_name, "text": text}
                         else:
                             result = {
                                 "file": file_path,
@@ -306,10 +305,9 @@ def query_code(
         files_to_process = _files_for_language(root, language_registry, language)
 
         # Process files in parallel
-        def process_file(rel_path: str) -> List[Dict[str, Any]]:
+        def process_file(rel_path: str) -> list[dict[str, Any]]:
             try:
-                # Use single-file version of query_code
-                file_results = query_code(
+                return query_code(
                     project,
                     query_string,
                     language_registry,
@@ -319,9 +317,8 @@ def query_code(
                     max_results if max_results is None else max_results - len(results),
                     include_snippets,
                 )
-                return file_results
             except Exception:
-                # Skip files that can't be queried
+                logger.debug("Skipping %s because the query failed", rel_path, exc_info=True)
                 return []
 
         # Process files until we reach max_results
@@ -333,13 +330,13 @@ def query_code(
                 if max_results is not None and len(results) >= max_results:
                     break
             except Exception:
-                # Skip files that cause errors
+                logger.debug("Skipping %s during a project query", file, exc_info=True)
                 continue
 
     return results[:max_results] if max_results is not None else results
 
 
-def _files_for_language(root: Any, language_registry: Any, language: str) -> List[str]:
+def _files_for_language(root: Any, language_registry: Any, language: str) -> list[str]:
     """Return project files whose detected language is exactly `language`.
 
     A `*.scss` glob also matches `styles.module.scss`. The detected id, not
@@ -349,7 +346,7 @@ def _files_for_language(root: Any, language_registry: Any, language: str) -> Lis
     if not suffixes:
         raise QueryError(f"No file extensions found for language {language}")
     seen: set[str] = set()
-    files: List[str] = []
+    files: list[str] = []
     for ext in suffixes:
         patterns = [f"**/*.{ext}"]
         if "." in ext:
@@ -422,10 +419,10 @@ def find_similar_code(
     snippet: str,
     language_registry: Any,
     tree_cache: Any,
-    language: Optional[str] = None,
+    language: str | None = None,
     threshold: float = 0.6,
     max_results: int = 10,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Find code structurally similar to a snippet using AST fingerprinting.
 
     Parses the snippet and each candidate code block into ASTs, extracts
@@ -461,7 +458,7 @@ def find_similar_code(
         return []
 
     root = project.root_path
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     for rel_path in _files_for_language(root, language_registry, language):
         file_path = root / rel_path
@@ -504,6 +501,7 @@ def find_similar_code(
                         }
                     )
         except (SecurityError, Exception):
+            logger.debug("Skipping %s during similarity search", rel_path, exc_info=True)
             continue
 
     results.sort(key=lambda x: x["similarity"], reverse=True)

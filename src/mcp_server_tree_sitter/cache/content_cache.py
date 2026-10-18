@@ -10,6 +10,7 @@ then rename into place.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -31,7 +32,11 @@ TRIM_MAX_AGE_SECONDS = 5 * 86400
 STALE_LOCK_SECONDS = 3600
 NOTE_LIMIT = 16384
 
-_pack_version: str | None = None
+
+class _PackVersion:
+    """Process-wide language-pack version, filled on first use."""
+
+    value: str | None = None
 
 
 def _sha256(data: bytes) -> str:
@@ -40,15 +45,14 @@ def _sha256(data: bytes) -> str:
 
 def pack_version() -> str:
     """Return the installed tree-sitter-language-pack version."""
-    global _pack_version
-    if _pack_version is None:
+    if _PackVersion.value is None:
         try:
             from importlib.metadata import version
 
-            _pack_version = version("tree-sitter-language-pack")
+            _PackVersion.value = version("tree-sitter-language-pack")
         except Exception:
-            _pack_version = "unknown"
-    return _pack_version
+            _PackVersion.value = "unknown"
+    return _PackVersion.value
 
 
 def default_cache_dir() -> Path:
@@ -116,10 +120,7 @@ class ContentCache:
             return None
         self.maybe_trim()
         try:
-            if source_bytes is None:
-                content_hash = self._content_hash(Path(file_path))
-            else:
-                content_hash = _sha256(source_bytes)
+            content_hash = self._content_hash(Path(file_path)) if source_bytes is None else _sha256(source_bytes)
             key = self._cache_key(operation, language, identity, content_hash)
             entry = self._entry_path(key)
             text = entry.read_text(encoding="utf-8")
@@ -272,10 +273,8 @@ class ContentCache:
                         entry.unlink()
                     except OSError:
                         continue
-                try:
+                with contextlib.suppress(OSError):
                     shard.rmdir()
-                except OSError:
-                    pass
         except OSError:
             logger.debug("content cache clear failed", exc_info=True)
 
@@ -287,10 +286,8 @@ class ContentCache:
             temporary.write_text(payload, encoding="utf-8")
             os.replace(temporary, destination)
         finally:
-            try:
+            with contextlib.suppress(FileNotFoundError):
                 temporary.unlink()
-            except FileNotFoundError:
-                pass
 
     def _touch(self, entry: Path) -> None:
         try:
@@ -332,18 +329,14 @@ class ContentCache:
                             removed += 1
                     except OSError:
                         continue
-                try:
+                with contextlib.suppress(OSError):
                     shard.rmdir()
-                except OSError:
-                    pass
             temporary = version / f".trim.{os.getpid()}.tmp"
             temporary.write_text(str(int(now)), encoding="utf-8")
             os.replace(temporary, version / "trim.txt")
         finally:
             os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 lock_path.unlink()
-            except OSError:
-                pass
         if removed:
             logger.info("content cache trim removed %s unused files", removed)

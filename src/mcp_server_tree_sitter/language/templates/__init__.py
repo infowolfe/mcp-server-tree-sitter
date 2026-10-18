@@ -1,7 +1,5 @@
 """Language-specific query templates collection."""
 
-from typing import Dict
-
 from . import (
     apl,
     c,
@@ -26,7 +24,7 @@ from . import (
 )
 
 # Combine all language templates
-QUERY_TEMPLATES: Dict[str, Dict[str, str]] = {
+QUERY_TEMPLATES: dict[str, dict[str, str]] = {
     "python": python.TEMPLATES,
     "javascript": javascript.TEMPLATES,
     "typescript": typescript.TEMPLATES,

@@ -59,7 +59,7 @@ Alternatively, you can manually configure Claude Desktop:
 1. Open your Claude Desktop configuration file:
    - macOS/Linux: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-   
+
    Create the file if it doesn't exist.
 
 2. Add the server to the `mcpServers` section:
@@ -285,16 +285,10 @@ While the primary intended use is through the MCP server, you can also use the l
 
 ```python
 # Import from the API module
-from mcp_server_tree_sitter.api import (
-    register_project, list_projects, get_config, get_language_registry
-)
+from mcp_server_tree_sitter.api import register_project, list_projects, get_config, get_language_registry
 
 # Register a project
-project_info = register_project(
-    path="/path/to/project", 
-    name="my-project", 
-    description="Description"
-)
+project_info = register_project(path="/path/to/project", name="my-project", description="Description")
 
 # List projects
 projects = list_projects()
@@ -304,6 +298,7 @@ config = get_config()
 
 # Access components through dependency injection
 from mcp_server_tree_sitter.di import get_container
+
 container = get_container()
 project_registry = container.project_registry
 language_registry = container.language_registry

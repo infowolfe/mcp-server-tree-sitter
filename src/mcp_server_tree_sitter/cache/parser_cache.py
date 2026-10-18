@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 # Import global_context at runtime to avoid circular imports
 from ..utils.tree_sitter_types import (
@@ -20,22 +20,22 @@ class TreeCache:
 
     def __init__(
         self,
-        max_size_mb: Optional[int] = None,
-        ttl_seconds: Optional[int] = None,
+        max_size_mb: int | None = None,
+        ttl_seconds: int | None = None,
         enabled: bool = True,
-    ):
+    ) -> None:
         """Initialize the tree cache with explicit size, TTL, and enabled settings."""
-        self.cache: Dict[str, Tuple[Any, bytes, float]] = {}  # (tree, source, timestamp)
+        self.cache: dict[str, tuple[Any, bytes, float]] = {}  # (tree, source, timestamp)
         self.lock = threading.RLock()
         self.current_size_bytes = 0
-        self.modified_trees: Dict[str, bool] = {}
+        self.modified_trees: dict[str, bool] = {}
         self.max_size_mb = max_size_mb or 100
         self.ttl_seconds = ttl_seconds or 300
         self.enabled = enabled
 
     def _get_cache_key(self, file_path: Path, language: str) -> str:
         """Generate cache key from file path and language."""
-        return f"{language}:{str(file_path)}:{file_path.stat().st_mtime}"
+        return f"{language}:{file_path!s}:{file_path.stat().st_mtime}"
 
     def set_enabled(self, enabled: bool) -> None:
         """Set whether caching is enabled."""
@@ -91,9 +91,12 @@ class TreeCache:
             # Fallback to instance value if container unavailable
             return self.enabled
 
-    def get(self, file_path: Path, language: str) -> Optional[Tuple[Tree, bytes]]:
-        """
-        Get cached tree if available and not expired.
+    def cache_enabled(self) -> bool:
+        """Return whether this cache should store trees."""
+        return self._is_cache_enabled()
+
+    def get(self, file_path: Path, language: str) -> tuple[Tree, bytes] | None:
+        """Get cached tree if available and not expired.
 
         Args:
             file_path: Path to the source file
@@ -133,8 +136,7 @@ class TreeCache:
         return None
 
     def put(self, file_path: Path, language: str, tree: Tree, source: bytes) -> None:
-        """
-        Cache a parsed tree.
+        """Cache a parsed tree.
 
         Args:
             file_path: Path to the source file
@@ -173,10 +175,9 @@ class TreeCache:
             if cache_key in self.cache:
                 _, old_source, _ = self.cache[cache_key]
                 self.current_size_bytes -= len(old_source)
-            else:
-                # If we need to make room for a new entry, remove oldest entries
-                if self.current_size_bytes + source_size > max_size_bytes:
-                    self._evict_entries(source_size)
+            # If we need to make room for a new entry, remove oldest entries
+            elif self.current_size_bytes + source_size > max_size_bytes:
+                self._evict_entries(source_size)
 
             # Store a copy so the caller can walk the tree it just parsed.
             self.cache[cache_key] = (_copy_tree(tree), source, time.time())
@@ -190,8 +191,7 @@ class TreeCache:
             self.modified_trees[cache_key] = False
 
     def mark_modified(self, file_path: Path, language: str) -> None:
-        """
-        Mark a tree as modified for tracking changes.
+        """Mark a tree as modified for tracking changes.
 
         Args:
             file_path: Path to the source file
@@ -206,8 +206,7 @@ class TreeCache:
             pass
 
     def is_modified(self, file_path: Path, language: str) -> bool:
-        """
-        Check if a tree has been modified since last parse.
+        """Check if a tree has been modified since last parse.
 
         Args:
             file_path: Path to the source file
@@ -224,8 +223,7 @@ class TreeCache:
             return False
 
     def update_tree(self, file_path: Path, language: str, tree: Tree, source: bytes) -> None:
-        """
-        Update a cached tree after modification.
+        """Update a cached tree after modification.
 
         Args:
             file_path: Path to the source file
@@ -253,8 +251,7 @@ class TreeCache:
                 self.put(file_path, language, tree, source)
 
     def _evict_entries(self, required_bytes: int) -> None:
-        """
-        Evict entries to make room for new data.
+        """Evict entries to make room for new data.
 
         Args:
             required_bytes: Number of bytes to make room for
@@ -321,9 +318,8 @@ class TreeCache:
         else:
             logger.info(log_msg)
 
-    def invalidate(self, file_path: Optional[Path] = None) -> None:
-        """
-        Invalidate cache entries.
+    def invalidate(self, file_path: Path | None = None) -> None:
+        """Invalidate cache entries.
 
         Args:
             file_path: If provided, invalidate only entries for this file.
@@ -355,8 +351,7 @@ def get_tree_cache() -> TreeCache:
     """Get the tree cache from the dependency container."""
     from ..di import get_container
 
-    tree_cache = get_container().tree_cache
-    return tree_cache
+    return get_container().tree_cache
 
 
 def _copy_tree(tree: Tree) -> Tree:

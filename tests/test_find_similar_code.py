@@ -226,8 +226,13 @@ def test_find_similar_result_structure(project):
     assert len(results) >= 1
     r = results[0]
     assert "file" in r
-    assert "start" in r and "row" in r["start"] and "column" in r["start"]
-    assert "end" in r and "row" in r["end"] and "column" in r["end"]
-    assert "similarity" in r and 0.0 <= r["similarity"] <= 1.0
+    assert "start" in r
+    assert "row" in r["start"]
+    assert "column" in r["start"]
+    assert "end" in r
+    assert "row" in r["end"]
+    assert "column" in r["end"]
+    assert "similarity" in r
+    assert 0.0 <= r["similarity"] <= 1.0
     assert "node_type" in r
     assert "text" in r

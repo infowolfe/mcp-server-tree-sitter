@@ -4,8 +4,9 @@ This module provides wrappers and utility functions for common tree-sitter opera
 to ensure type safety and consistent handling of tree-sitter objects.
 """
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 # Import tree_cache at runtime as needed to avoid circular imports
 from ..utils.file_io import read_binary_file
@@ -57,8 +58,7 @@ def query_captures(query: Any, node: Any) -> Any:
 
 
 def create_parser(language_obj: Any) -> Parser:
-    """
-    Create a parser configured for a specific language.
+    """Create a parser configured for a specific language.
 
     tree-sitter 0.26 takes the language in the constructor and has no
     set_language method.
@@ -74,9 +74,8 @@ def create_parser(language_obj: Any) -> Parser:
     return ensure_parser(parser)
 
 
-def parse_source(source: bytes, parser: Union[Parser, Any]) -> Tree:
-    """
-    Parse source code using a configured parser.
+def parse_source(source: bytes, parser: Parser | Any) -> Tree:
+    """Parse source code using a configured parser.
 
     Args:
         source: Source code as bytes
@@ -90,9 +89,8 @@ def parse_source(source: bytes, parser: Union[Parser, Any]) -> Tree:
     return ensure_tree(tree)
 
 
-def parse_source_incremental(source: bytes, old_tree: Optional[Tree], parser: Parser) -> Tree:
-    """
-    Parse source code incrementally using a configured parser.
+def parse_source_incremental(source: bytes, old_tree: Tree | None, parser: Parser) -> Tree:
+    """Parse source code incrementally using a configured parser.
 
     Args:
         source: Source code as bytes
@@ -109,15 +107,14 @@ def parse_source_incremental(source: bytes, old_tree: Optional[Tree], parser: Pa
 
 def edit_tree(
     tree: Tree,
-    edit_dict_or_start_byte: Union[Dict[str, Any], int],
-    old_end_byte: Optional[int] = None,
-    new_end_byte: Optional[int] = None,
-    start_point: Optional[Tuple[int, int]] = None,
-    old_end_point: Optional[Tuple[int, int]] = None,
-    new_end_point: Optional[Tuple[int, int]] = None,
+    edit_dict_or_start_byte: dict[str, Any] | int,
+    old_end_byte: int | None = None,
+    new_end_byte: int | None = None,
+    start_point: tuple[int, int] | None = None,
+    old_end_point: tuple[int, int] | None = None,
+    new_end_point: tuple[int, int] | None = None,
 ) -> Tree:
-    """
-    Edit a syntax tree to reflect source code changes.
+    """Edit a syntax tree to reflect source code changes.
 
     Args:
         tree: Tree to edit
@@ -164,9 +161,8 @@ def edit_tree(
     return safe_tree
 
 
-def get_changed_ranges(old_tree: Tree, new_tree: Tree) -> List[Tuple[int, int]]:
-    """
-    Get changed ranges between two syntax trees.
+def get_changed_ranges(old_tree: Tree, new_tree: Tree) -> list[tuple[int, int]]:
+    """Get changed ranges between two syntax trees.
 
     Args:
         old_tree: Old syntax tree
@@ -178,10 +174,8 @@ def get_changed_ranges(old_tree: Tree, new_tree: Tree) -> List[Tuple[int, int]]:
     safe_old_tree = ensure_tree(old_tree)
     safe_new_tree = ensure_tree(new_tree)
 
-    # Note: This is a simplified implementation as tree_sitter Python
-    # binding might not expose changed_ranges directly
-    # In a real implementation, you would call:
-    # ranges = old_tree.changed_ranges(new_tree)
+    # The Python binding may not expose changed_ranges. Compare the two
+    # roots instead of asking the old tree for its changed ranges.
 
     # For now, return a basic comparison at the root level
     old_root = safe_old_tree.root_node
@@ -194,11 +188,8 @@ def get_changed_ranges(old_tree: Tree, new_tree: Tree) -> List[Tuple[int, int]]:
     return []
 
 
-def parse_file(
-    file_path: Path, parser_or_language: Union[Parser, str], registry: Optional[Any] = None
-) -> Tuple[Tree, bytes]:
-    """
-    Parse a file using a configured parser.
+def parse_file(file_path: Path, parser_or_language: Parser | str, registry: Any | None = None) -> tuple[Tree, bytes]:
+    """Parse a file using a configured parser.
 
     Args:
         file_path: Path to the file
@@ -214,14 +205,14 @@ def parse_file(
     if hasattr(parser_or_language, "parse"):
         parser = parser_or_language
         tree = parse_source(source_bytes, parser)
-        return cast(Tuple[Tree, bytes], (tree, source_bytes))
+        return cast("tuple[Tree, bytes]", (tree, source_bytes))
 
     # If we received a language string and registry, get the parser
-    elif isinstance(parser_or_language, str) and registry is not None:
+    if isinstance(parser_or_language, str) and registry is not None:
         try:
             parser = registry.get_parser(parser_or_language)
             tree = parse_source(source_bytes, parser)
-            return cast(Tuple[Tree, bytes], (tree, source_bytes))
+            return cast("tuple[Tree, bytes]", (tree, source_bytes))
         except Exception as e:
             raise ValueError(f"Could not get parser for language '{parser_or_language}': {e}") from e
 
@@ -229,9 +220,8 @@ def parse_file(
     raise ValueError(f"Invalid parser or language: {parser_or_language}")
 
 
-def get_node_text(node: Node, source_bytes: bytes, decode: bool = True) -> Union[str, bytes]:
-    """
-    Safely get text for a node from source bytes.
+def get_node_text(node: Node, source_bytes: bytes, decode: bool = True) -> str | bytes:
+    """Safely get text for a node from source bytes.
 
     Args:
         node: Node object
@@ -255,8 +245,7 @@ def get_node_text(node: Node, source_bytes: bytes, decode: bool = True) -> Union
 
 
 def walk_tree(node: Node) -> TreeCursor:
-    """
-    Get a cursor for walking a tree from a node.
+    """Get a cursor for walking a tree from a node.
 
     Args:
         node: Node to start from
@@ -269,9 +258,8 @@ def walk_tree(node: Node) -> TreeCursor:
     return ensure_cursor(cursor)
 
 
-def cursor_walk_tree(node: Node, visit_fn: Callable[[Optional[Node], Optional[str], int], bool]) -> None:
-    """
-    Walk a tree using cursor for efficiency.
+def cursor_walk_tree(node: Node, visit_fn: Callable[[Node | None, str | None, int], bool]) -> None:
+    """Walk a tree using cursor for efficiency.
 
     Args:
         node: Root node to start from
@@ -299,11 +287,9 @@ def cursor_walk_tree(node: Node, visit_fn: Callable[[Optional[Node], Optional[st
                             field_name = name
                             break
 
-            if visit_fn(cursor.node, field_name, depth):
-                # Visit children
-                if cursor.goto_first_child():
-                    depth += 1
-                    continue
+            if visit_fn(cursor.node, field_name, depth) and cursor.goto_first_child():
+                depth += 1
+                continue
 
             # No children or children skipped, try siblings
             if cursor.goto_next_sibling():
@@ -324,10 +310,9 @@ def cursor_walk_tree(node: Node, visit_fn: Callable[[Optional[Node], Optional[st
 
 def collect_with_cursor(
     node: Node,
-    collector_fn: Callable[[Optional[Node], Optional[str], int], Optional[T]],
-) -> List[T]:
-    """
-    Collect items from a tree using cursor traversal.
+    collector_fn: Callable[[Node | None, str | None, int], T | None],
+) -> list[T]:
+    """Collect items from a tree using cursor traversal.
 
     Args:
         node: Root node to start from
@@ -337,9 +322,9 @@ def collect_with_cursor(
     Returns:
         List of collected items
     """
-    items: List[T] = []
+    items: list[T] = []
 
-    def visit(node: Optional[Node], field_name: Optional[str], depth: int) -> bool:
+    def visit(node: Node | None, field_name: str | None, depth: int) -> bool:
         if node is None:
             return False
         item = collector_fn(node, field_name, depth)
@@ -351,9 +336,8 @@ def collect_with_cursor(
     return items
 
 
-def find_nodes_by_type(root_node: Node, node_type: str) -> List[Node]:
-    """
-    Find all nodes of a specific type in a tree.
+def find_nodes_by_type(root_node: Node, node_type: str) -> list[Node]:
+    """Find all nodes of a specific type in a tree.
 
     Args:
         root_node: Root node to search from
@@ -363,7 +347,7 @@ def find_nodes_by_type(root_node: Node, node_type: str) -> List[Node]:
         List of matching nodes
     """
 
-    def collector(node: Optional[Node], _field_name: Optional[str], _depth: int) -> Optional[Node]:
+    def collector(node: Node | None, _field_name: str | None, _depth: int) -> Node | None:
         if node is None:
             return None
         if node.type == node_type:
@@ -373,9 +357,8 @@ def find_nodes_by_type(root_node: Node, node_type: str) -> List[Node]:
     return collect_with_cursor(root_node, collector)
 
 
-def get_node_descendants(node: Optional[Node], max_depth: Optional[int] = None) -> List[Node]:
-    """
-    Get all descendants of a node.
+def get_node_descendants(node: Node | None, max_depth: int | None = None) -> list[Node]:
+    """Get all descendants of a node.
 
     Args:
         node: Node to get descendants for
@@ -384,12 +367,12 @@ def get_node_descendants(node: Optional[Node], max_depth: Optional[int] = None) 
     Returns:
         List of descendant nodes
     """
-    descendants: List[Node] = []
+    descendants: list[Node] = []
 
     if node is None:
         return descendants
 
-    def visit(node: Optional[Node], _field_name: Optional[str], depth: int) -> bool:
+    def visit(node: Node | None, _field_name: str | None, depth: int) -> bool:
         if node is None:
             return False
         if max_depth is not None and depth > max_depth:
@@ -406,9 +389,8 @@ def get_node_descendants(node: Optional[Node], max_depth: Optional[int] = None) 
 
 def parse_with_cached_tree(
     file_path: Path, language: str, language_obj: Language, tree_cache: Any = None
-) -> Tuple[Tree, bytes]:
-    """
-    Parse a file with tree caching.
+) -> tuple[Tree, bytes]:
+    """Parse a file with tree caching.
 
     Args:
         file_path: Path to the file
@@ -440,7 +422,7 @@ def parse_with_cached_tree(
     # Cache the tree
     tree_cache.put(file_path, language, tree, source_bytes)
 
-    return cast(Tuple[Tree, bytes], (tree, source_bytes))
+    return cast("tuple[Tree, bytes]", (tree, source_bytes))
 
 
 def update_cached_tree(
@@ -450,20 +432,23 @@ def update_cached_tree(
     start_byte: int,
     old_end_byte: int,
     new_end_byte: int,
-    start_point: Tuple[int, int],
-    old_end_point: Tuple[int, int],
-    new_end_point: Tuple[int, int],
+    start_point: tuple[int, int],
+    old_end_point: tuple[int, int],
+    new_end_point: tuple[int, int],
     tree_cache: Any = None,
-) -> Optional[Tuple[Tree, bytes]]:
-    """
-    Update a cached tree with edit operation.
+) -> tuple[Tree, bytes] | None:
+    """Update a cached tree with edit operation.
 
     Args:
         file_path: Path to the source file
         language: Language identifier
         language_obj: Language object
-        start_byte, old_end_byte, new_end_byte: Byte positions of edit
-        start_point, old_end_point, new_end_point: Row/column positions of edit
+        start_byte: Start byte of the edit
+        old_end_byte: End byte of the replaced range
+        new_end_byte: End byte of the replacement
+        start_point: Start row and column of the edit
+        old_end_point: End row and column of the replaced range
+        new_end_point: End row and column of the replacement
         tree_cache: Tree cache instance (optional, falls back to container if not provided)
 
     Returns:
@@ -480,7 +465,7 @@ def update_cached_tree(
     if not cached:
         return None
 
-    old_tree, old_source = cached
+    old_tree, _old_source = cached
 
     try:
         # Apply edit to the tree
@@ -505,7 +490,7 @@ def update_cached_tree(
         # Update cache
         tree_cache.put(file_path, language, new_tree, new_source)
 
-        return cast(Tuple[Tree, bytes], (new_tree, new_source))
+        return cast("tuple[Tree, bytes]", (new_tree, new_source))
     except Exception:
         # If incremental parsing fails, fall back to full parse
         return parse_with_cached_tree(file_path, language, language_obj, tree_cache=tree_cache)
@@ -518,12 +503,11 @@ def create_edit(
     start_byte: int,
     old_end_byte: int,
     new_end_byte: int,
-    start_point: Tuple[int, int],
-    old_end_point: Tuple[int, int],
-    new_end_point: Tuple[int, int],
-) -> Dict[str, Any]:
-    """
-    Create an edit dictionary for modifying trees.
+    start_point: tuple[int, int],
+    old_end_point: tuple[int, int],
+    new_end_point: tuple[int, int],
+) -> dict[str, Any]:
+    """Create an edit dictionary for modifying trees.
 
     Args:
         start_byte: Start byte of the edit
@@ -546,9 +530,8 @@ def create_edit(
     }
 
 
-def parse_file_with_detection(file_path: Path, language: Optional[str], registry: Any) -> Tuple[Tree, bytes]:
-    """
-    Parse a file with language detection.
+def parse_file_with_detection(file_path: Path, language: str | None, registry: Any) -> tuple[Tree, bytes]:
+    """Parse a file with language detection.
 
     Args:
         file_path: Path to the file
@@ -579,12 +562,11 @@ def parse_file_with_detection(file_path: Path, language: Optional[str], registry
     source_bytes = read_binary_file(file_path)
     tree = parse_source(source_bytes, parser)
 
-    return cast(Tuple[Tree, bytes], (tree, source_bytes))
+    return cast("tuple[Tree, bytes]", (tree, source_bytes))
 
 
-def parse_file_incremental(file_path: Path, old_tree: Tree, language: str, registry: Any) -> Tuple[Tree, bytes]:
-    """
-    Parse a file incrementally using a previous tree.
+def parse_file_incremental(file_path: Path, old_tree: Tree, language: str, registry: Any) -> tuple[Tree, bytes]:
+    """Parse a file incrementally using a previous tree.
 
     Args:
         file_path: Path to the file
@@ -605,12 +587,11 @@ def parse_file_incremental(file_path: Path, old_tree: Tree, language: str, regis
     source_bytes = read_binary_file(file_path)
     tree = parse_source_incremental(source_bytes, old_tree, parser)
 
-    return cast(Tuple[Tree, bytes], (tree, source_bytes))
+    return cast("tuple[Tree, bytes]", (tree, source_bytes))
 
 
-def get_node_with_text(node: Node, source_bytes: bytes, text: bytes) -> Optional[Node]:
-    """
-    Find a node containing specific text.
+def get_node_with_text(node: Node, source_bytes: bytes, text: bytes) -> Node | None:
+    """Find a node containing specific text.
 
     Args:
         node: Root node to search from
@@ -632,9 +613,8 @@ def get_node_with_text(node: Node, source_bytes: bytes, text: bytes) -> Optional
     return None
 
 
-def is_node_inside(pos_or_node: Union[Node, Tuple[int, int]], container_node: Node) -> bool:
-    """
-    Check if a node or position is inside another node.
+def is_node_inside(pos_or_node: Node | tuple[int, int], container_node: Node) -> bool:
+    """Check if a node or position is inside another node.
 
     Args:
         pos_or_node: Node or position (row, column) to check
@@ -654,9 +634,7 @@ def is_node_inside(pos_or_node: Union[Node, Tuple[int, int]], container_node: No
             return False
         if row == start_row and column < start_col:
             return False
-        if row == end_row and column > end_col:
-            return False
-        return True
+        return not (row == end_row and column > end_col)
 
     # Handle node case
     node = pos_or_node
@@ -667,9 +645,8 @@ def is_node_inside(pos_or_node: Union[Node, Tuple[int, int]], container_node: No
     return is_node_inside(node.start_point, container_node) and is_node_inside(node.end_point, container_node)
 
 
-def find_all_descendants(node: Node, max_depth: Optional[int] = None) -> List[Node]:
-    """
-    Find all descendant nodes of a given node.
+def find_all_descendants(node: Node, max_depth: int | None = None) -> list[Node]:
+    """Find all descendant nodes of a given node.
 
     Args:
         node: Root node to search from

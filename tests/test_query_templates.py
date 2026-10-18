@@ -1,7 +1,5 @@
 """Compile bundled query templates against tree-sitter-language-pack."""
 
-from typing import Dict, Set
-
 from tree_sitter import Query, QueryCursor
 from tree_sitter_language_pack import get_language, get_parser
 
@@ -25,7 +23,8 @@ def test_every_template_compiles() -> None:
             language_obj = registry.get_language(language)
         except Exception as exc:
             unloadable.add(language)
-            assert language in UNLOADABLE, f"{language} failed to load: {exc}"
+            if language not in UNLOADABLE:
+                raise AssertionError(f"{language} failed to load: {exc}") from exc
             continue
         for name, source in QUERY_TEMPLATES[language].items():
             try:
@@ -40,10 +39,10 @@ def test_julia_extension_is_registered() -> None:
     assert LanguageRegistry().language_for_file("sample.jl") == "julia"
 
 
-def _captures(language: str, source: str, template_names: list[str]) -> Dict[str, Set[str]]:
+def _captures(language: str, source: str, template_names: list[str]) -> dict[str, set[str]]:
     language_obj = get_language(language)
     tree = get_parser(language).parse(source.encode())
-    found: Dict[str, Set[str]] = {}
+    found: dict[str, set[str]] = {}
     for name in template_names:
         query = Query(language_obj, QUERY_TEMPLATES[language][name])
         for capture, nodes in QueryCursor(query).captures(tree.root_node).items():

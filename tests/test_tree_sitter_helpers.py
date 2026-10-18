@@ -1,8 +1,7 @@
 """Tests for tree_sitter_helpers.py module."""
 
-import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
@@ -24,15 +23,12 @@ from mcp_server_tree_sitter.utils.tree_sitter_helpers import (
 
 # Fixtures
 @pytest.fixture
-def test_files() -> Dict[str, Path]:
+def test_files(tmp_path: Path) -> dict[str, Path]:
     """Create temporary test files for different languages."""
-    python_file = Path(tempfile.mktemp(suffix=".py"))
-    js_file = Path(tempfile.mktemp(suffix=".js"))
-
-    # Write Python test file
-    with open(python_file, "w") as f:
-        f.write(
-            """def hello(name):
+    python_file = tmp_path / "sample.py"
+    js_file = tmp_path / "sample.js"
+    python_file.write_text(
+        """def hello(name):
     print(f"Hello, {name}!")
 
 class Person:
@@ -46,13 +42,11 @@ class Person:
 if __name__ == "__main__":
     person = Person("Alice", 30)
     print(person.greet())
-"""
-        )
-
-    # Write JavaScript test file
-    with open(js_file, "w") as f:
-        f.write(
-            """
+""",
+        encoding="utf-8",
+    )
+    js_file.write_text(
+        """
 function hello(name) {
     return `Hello, ${name}!`;
 }
@@ -70,14 +64,14 @@ class Person {
 
 const person = new Person("Alice", 30);
 console.log(person.greet());
-"""
-        )
-
+""",
+        encoding="utf-8",
+    )
     return {"python": python_file, "javascript": js_file}
 
 
 @pytest.fixture
-def parsed_files(test_files) -> Dict[str, Dict[str, Any]]:
+def parsed_files(test_files) -> dict[str, dict[str, Any]]:
     """Create parsed source trees for different languages."""
     from mcp_server_tree_sitter.language.registry import LanguageRegistry
 
@@ -147,11 +141,11 @@ def test_parse_file_with_unknown_language(tmp_path):
         f.write("This is a test file with unknown language")
 
     # Try to parse with auto-detection (should fail gracefully)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Could not detect language"):
         parse_file_with_detection(unknown_file, None, registry)
 
     # Try to parse with explicit unknown language (should also fail)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="nonexistent_language"):
         parse_file_with_detection(unknown_file, "nonexistent_language", registry)
 
 
@@ -393,7 +387,7 @@ def test_parse_file_incremental(test_files, tmp_path):
     registry = LanguageRegistry()
 
     # Initial parse
-    tree1, source1 = parse_file_with_detection(test_files["python"], "python", registry)
+    tree1, _source1 = parse_file_with_detection(test_files["python"], "python", registry)
 
     # Create a modified version of the file
     modified_file = tmp_path / "modified.py"

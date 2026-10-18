@@ -4,26 +4,26 @@ This module provides functions for converting tree-sitter AST nodes to dictionar
 finding nodes at specific positions, and other AST-related operations.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+import logging
+from typing import Any
 
 from ..utils.tree_sitter_helpers import (
     get_node_text,
 )
 from ..utils.tree_sitter_types import ensure_node
-
-# Import the cursor-based implementation
 from .ast_cursor import node_to_dict_cursor
+
+logger = logging.getLogger(__name__)
 
 
 def node_to_dict(
     node: Any,
-    source_bytes: Optional[bytes] = None,
+    source_bytes: bytes | None = None,
     include_children: bool = True,
     include_text: bool = True,
     max_depth: int = 5,
-) -> Dict[str, Any]:
-    """
-    Convert a tree-sitter node to a dictionary representation.
+) -> dict[str, Any]:
+    """Convert a tree-sitter node to a dictionary representation.
 
     This function now uses a cursor-based traversal approach for efficiency and
     reliability, especially with large ASTs that could cause stack overflow with
@@ -43,9 +43,8 @@ def node_to_dict(
     return node_to_dict_cursor(node, source_bytes, include_children, include_text, max_depth)
 
 
-def summarize_node(node: Any, source_bytes: Optional[bytes] = None) -> Dict[str, Any]:
-    """
-    Create a compact summary of a node without details or children.
+def summarize_node(node: Any, source_bytes: bytes | None = None) -> dict[str, Any]:
+    """Create a compact summary of a node without details or children.
 
     Args:
         node: Tree-sitter Node object
@@ -79,14 +78,13 @@ def summarize_node(node: Any, source_bytes: Optional[bytes] = None) -> Dict[str,
                     snippet += "..."
                 result["preview"] = snippet
         except Exception:
-            pass
+            logger.debug("Skipping the preview snippet for this node", exc_info=True)
 
     return result
 
 
-def find_node_at_position(root_node: Any, row: int, column: int) -> Optional[Any]:
-    """
-    Find the most specific node at a given position.
+def find_node_at_position(root_node: Any, row: int, column: int) -> Any | None:
+    """Find the most specific node at a given position.
 
     Uses tree-sitter's built-in descendant_for_point_range which delegates
     to the C implementation for efficient lookup.
@@ -112,9 +110,8 @@ def find_node_at_position(root_node: Any, row: int, column: int) -> Optional[Any
 def extract_node_path(
     root_node: Any,
     target_node: Any,
-) -> List[Tuple[str, Optional[str]]]:
-    """
-    Extract the path from root to a specific node using safe node handling.
+) -> list[tuple[str, str | None]]:
+    """Extract the path from root to a specific node using safe node handling.
 
     Args:
         root_node: Root node

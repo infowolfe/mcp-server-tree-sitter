@@ -10,10 +10,9 @@ modify how logging is configured, make changes here and nowhere else.
 
 import logging
 import os
-from typing import Dict, Union
 
 # Numeric values corresponding to log level names
-LOG_LEVEL_MAP: Dict[str, int] = {
+LOG_LEVEL_MAP: dict[str, int] = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
     "WARNING": logging.WARNING,
@@ -23,8 +22,7 @@ LOG_LEVEL_MAP: Dict[str, int] = {
 
 
 def get_log_level_from_env() -> int:
-    """
-    Get log level from environment variable MCP_TS_LOG_LEVEL.
+    """Get log level from environment variable MCP_TS_LOG_LEVEL.
 
     Returns:
         int: Logging level value (e.g., logging.DEBUG, logging.INFO)
@@ -34,8 +32,8 @@ def get_log_level_from_env() -> int:
 
 
 def configure_root_logger() -> None:
-    """
-    Configure the root logger based on environment variables.
+    """Configure the root logger based on environment variables.
+
     This should be called at the earliest possible point in the application.
     """
     log_level = get_log_level_from_env()
@@ -63,9 +61,8 @@ def configure_root_logger() -> None:
                 handler.setLevel(logger.getEffectiveLevel())
 
 
-def update_log_levels(level_name: Union[str, int]) -> None:
-    """
-    Update the root package logger level and synchronize handler levels.
+def update_log_levels(level_name: str | int) -> None:
+    """Update the root package logger level and synchronize handler levels.
 
     This function sets the level of the root package logger only. Child loggers
     will inherit this level unless they have their own explicit level settings.
@@ -75,10 +72,7 @@ def update_log_levels(level_name: Union[str, int]) -> None:
         level_name: Log level name (DEBUG, INFO, etc.) or numeric value
     """
     # Convert string level name to numeric value if needed
-    if isinstance(level_name, str):
-        level_value = LOG_LEVEL_MAP.get(level_name.upper(), logging.INFO)
-    else:
-        level_value = level_name
+    level_value = LOG_LEVEL_MAP.get(level_name.upper(), logging.INFO) if isinstance(level_name, str) else level_name
 
     # Update ONLY the root package logger level
     pkg_logger = logging.getLogger("mcp_server_tree_sitter")
@@ -111,8 +105,7 @@ def update_log_levels(level_name: Union[str, int]) -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """
-    Get a properly configured logger with appropriate level.
+    """Get a properly configured logger with appropriate level.
 
     Args:
         name: Logger name, typically __name__

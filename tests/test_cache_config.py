@@ -25,8 +25,7 @@ def test_project():
                 f.write(f"def function{i}():\n")
                 f.write(f"    print('This is function {i}')\n\n")
                 # Add more content to make files reasonably sized
-                for j in range(20):
-                    f.write(f"    # Comment line {j} to add size\n")
+                f.writelines(f"    # Comment line {j} to add size\n" for j in range(20))
 
         # Register the project
         project_name = "cache_test_project"
@@ -55,8 +54,7 @@ def test_cache_max_size_setting(test_project):
             # Create a file with approximately 3KB of data
             f.write(f"# File {i} - larger content to trigger cache eviction\n")
             # Add 300 lines with 10 chars each = ~3KB
-            for j in range(300):
-                f.write(f"# Line {j:04d}\n")
+            f.writelines(f"# Line {j:04d}\n" for j in range(300))
 
     # Set a very small cache size (just 8KB, so only 2-3 files can fit)
     with temp_config(**{"cache.max_size_mb": 0.008, "cache.enabled": True}):
@@ -128,8 +126,7 @@ def test_cache_eviction_policy(test_project):
             # Create a file with approximately 3KB of data
             f.write(f"# File {i} for eviction test\n")
             # Add 300 lines with 10 chars each = ~3KB
-            for j in range(300):
-                f.write(f"# Evict {j:04d}\n")
+            f.writelines(f"# Evict {j:04d}\n" for j in range(300))
 
     # Set a tiny cache size to force eviction (6KB = only 2 files)
     with temp_config(**{"cache.max_size_mb": 0.006, "cache.enabled": True}):

@@ -102,6 +102,7 @@ except ImportError:
 
         def query(self, query_string: str) -> Any:
             """Dummy query method."""
+            self.query_string = query_string
             return None
 
     class DummyParser:
@@ -112,14 +113,13 @@ except ImportError:
 
         def set_language(self, language: Any) -> None:
             """Dummy set_language method."""
-            pass
 
         def language(self, language: Any) -> None:
             """Dummy language method (alternative to set_language)."""
-            pass
 
         def parse(self, bytes_input: bytes) -> Any:
             """Dummy parse method."""
+            self.bytes_input = bytes_input
             return None
 
     class DummyNode:
@@ -201,34 +201,34 @@ except ImportError:
 
     # Export dummy types for type checking
     # Declare dummy types for when tree-sitter is not available
-    Language = DummyLanguage  # type: ignore
-    Parser = DummyParser  # type: ignore
-    Tree = DummyTree  # type: ignore
-    Node = DummyNode  # type: ignore
-    TreeCursor = DummyTreeCursor  # type: ignore
+    Language = DummyLanguage  # type: ignore[misc, assignment]
+    Parser = DummyParser  # type: ignore[misc, assignment]
+    Tree = DummyTree  # type: ignore[misc, assignment]
+    Node = DummyNode  # type: ignore[misc, assignment]
+    TreeCursor = DummyTreeCursor  # type: ignore[misc, assignment]
 
 
 # Helper function to safely cast to tree-sitter types
 def ensure_language(obj: Any) -> "Language":
     """Safely cast to Language type."""
-    return cast(Language, obj)
+    return cast("Language", obj)
 
 
 def ensure_parser(obj: Any) -> "Parser":
     """Safely cast to Parser type."""
-    return cast(Parser, obj)
+    return cast("Parser", obj)
 
 
 def ensure_tree(obj: Any) -> "Tree":
     """Safely cast to Tree type."""
-    return cast(Tree, obj)
+    return cast("Tree", obj)
 
 
 def ensure_node(obj: Any) -> "Node":
     """Safely cast to Node type."""
-    return cast(Node, obj)
+    return cast("Node", obj)
 
 
 def ensure_cursor(obj: Any) -> "TreeCursor":
     """Safely cast to TreeCursor type."""
-    return cast(TreeCursor, obj)
+    return cast("TreeCursor", obj)

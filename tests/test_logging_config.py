@@ -92,14 +92,13 @@ def test_log_level_setting(test_project):
 
     try:
         # Test with DEBUG level
-        with temp_config(**{"log_level": "DEBUG"}):
+        with temp_config(log_level="DEBUG"):
             # Apply configuration
             configure(log_level="DEBUG")
 
             # Capture logs during an operation
             with capture_logs(logger_name) as log_capture:
                 # Don't force the root logger level - it should be set by configure
-                # logging.getLogger(logger_name).setLevel(logging.DEBUG)
 
                 # Perform an operation that generates logs
                 get_ast(project=test_project["name"], path=test_project["file"])
@@ -112,7 +111,7 @@ def test_log_level_setting(test_project):
                 assert "DEBUG:" in logs, "DEBUG level messages should be present"
 
         # Test with INFO level (less verbose)
-        with temp_config(**{"log_level": "INFO"}):
+        with temp_config(log_level="INFO"):
             # Apply configuration
             configure(log_level="INFO")
 

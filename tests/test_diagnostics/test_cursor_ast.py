@@ -1,8 +1,10 @@
 """Pytest-based diagnostic tests for cursor-based AST functionality."""
 
 import tempfile
+from collections.abc import Generator
+from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Generator, Tuple
+from typing import Any
 
 import pytest
 
@@ -12,7 +14,7 @@ from mcp_server_tree_sitter.models.ast_cursor import node_to_dict_cursor
 from tests.test_helpers import register_project_tool
 
 
-def parse_file(file_path: Path, language: str) -> Tuple[Any, bytes]:
+def parse_file(file_path: Path, language: str) -> tuple[Any, bytes]:
     """Replacement for the relocated parse_file function."""
     language_registry = get_language_registry()
 
@@ -28,7 +30,7 @@ def parse_file(file_path: Path, language: str) -> Tuple[Any, bytes]:
 
 
 @pytest.fixture
-def test_project() -> Generator[Dict[str, Any], None, None]:
+def test_project() -> Generator[dict[str, Any], None, None]:
     """Create a temporary test project with a sample file."""
     # Set up a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -48,10 +50,8 @@ def test_project() -> Generator[Dict[str, Any], None, None]:
         yield {"name": project_name, "path": project_path, "file": "test.py"}
 
         # Clean up
-        try:
+        with suppress(Exception):
             project_registry.remove_project(project_name)
-        except Exception:
-            pass
 
 
 @pytest.mark.diagnostic

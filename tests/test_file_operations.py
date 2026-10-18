@@ -1,8 +1,9 @@
 """Tests for file_operations.py module."""
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any
 
 import pytest
 
@@ -17,7 +18,7 @@ from tests.test_helpers import register_project_tool
 
 
 @pytest.fixture
-def test_project() -> Generator[Dict[str, Any], None, None]:
+def test_project() -> Generator[dict[str, Any], None, None]:
     """Create a temporary test project with various file types."""
     with tempfile.TemporaryDirectory() as temp_dir:
         project_path = Path(temp_dir)

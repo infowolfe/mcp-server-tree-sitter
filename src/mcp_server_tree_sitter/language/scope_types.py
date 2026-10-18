@@ -6,12 +6,12 @@ node-type map is not enough for Python methods or Go struct specs; those
 rules are applied while walking the tree.
 """
 
-from typing import Dict, Mapping, Optional, Tuple
+from collections.abc import Mapping
 
 # Kind lists are most specific first: method, function, class, then module.
-ScopeTable = Mapping[str, Tuple[str, ...]]
+ScopeTable = Mapping[str, tuple[str, ...]]
 
-SCOPE_TYPES: Dict[str, Dict[str, Tuple[str, ...]]] = {
+SCOPE_TYPES: dict[str, dict[str, tuple[str, ...]]] = {
     "python": {
         "function": ("function_definition",),
         "class": ("class_definition",),
@@ -120,12 +120,12 @@ SCOPE_TYPES: Dict[str, Dict[str, Tuple[str, ...]]] = {
     },
 }
 
-_KIND_ORDER: Tuple[str, ...] = ("method", "function", "class", "module")
+_KIND_ORDER: tuple[str, ...] = ("method", "function", "class", "module")
 
 
-def kind_for_node_type(language: str, node_type: str) -> Optional[str]:
+def kind_for_node_type(language: str, node_type: str) -> str | None:
     """Return the table kind for a node type, before Python, Go, and C++ refinements."""
-    table: Optional[ScopeTable] = SCOPE_TYPES.get(language)
+    table: ScopeTable | None = SCOPE_TYPES.get(language)
     if table is None:
         return None
     for kind in _KIND_ORDER:
